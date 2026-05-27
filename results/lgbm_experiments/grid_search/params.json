@@ -1,0 +1,13 @@
+{
+    "objective": "binary",
+    "random_state": 42,
+    "scale_pos_weight": 5.198795180722891,
+    "n_estimators": 100,
+    "min_child_samples": 10,
+    "verbose": -1,
+    "learning_rate": 0.2,
+    "max_depth": 5,
+    "num_leaves": 7,
+    "reg_alpha": 1,
+    "reg_lambda": 1
+}
