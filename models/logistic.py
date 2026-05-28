@@ -167,6 +167,7 @@ coef_comparison_df = pd.DataFrame({"Feature": feature_names})
 # 6개의 최적 모델을 루프 돌며 통째로 재학습시키고 가중치를 뽑아 합치기
 valid_results=[]
 
+
 for comb in top_combinations:
     model = LogisticRegression(
         penalty=comb["penalty"],
@@ -222,3 +223,39 @@ display(coef_comparison_df[['Feature', 'Model_LogLoss_Top (Index 11)']].sort_val
 # 검증 결과
 print("\n[검증 결과]")
 display(pd.DataFrame(valid_results))
+
+## pr-auc 1등 모델 기준 threshold 튜닝
+import numpy as np
+
+best_lr_model = LogisticRegression(
+    penalty="l2",
+    C=1.0,
+    class_weight=None,
+    solver="lbfgs",
+    max_iter=3000,
+    random_state=42
+)
+best_lr_model.fit(x_train, y_train)
+y_proba_lr_valid = best_lr_model.predict_proba(x_valid)[:, 1]
+
+thresholds = np.arange(0.1, 0.95, 0.05)
+threshold_tuning_results = []
+
+for th in thresholds:
+    # 확률이 th보다 크거나 같으면 1(퇴사), 작으면 0(잔류)으로 커스텀 판정
+    y_pred_custom = (y_proba_lr_valid >= th).astype(int)
+    precision, recall, f1, roc_auc, pr_auc, logloss = evaluate_model(y_valid, y_pred_custom, y_proba_lr_valid)
+    
+    threshold_tuning_results.append({
+        "Threshold": round(th, 2),
+        "Precision": round(precision, 4),
+        "Recall": round(recall, 4),
+        "F1-Score": round(f1, 4),
+        "ROC-AUC": round(roc_auc, 4),
+        "PR-AUC": round(pr_auc, 4),
+        "LogLoss": round(logloss, 4)
+    })
+
+print("\n[PR-AUC 1등 모델 기준 Threshold 튜닝 결과]")
+display(pd.DataFrame(threshold_tuning_results))
+# threshold가 0.25일 때 precision, recall, f1-score가 가장 균형잡힌 결과를 가져옴
