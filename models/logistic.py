@@ -259,3 +259,69 @@ for th in thresholds:
 print("\n[PR-AUC 1등 모델 기준 Threshold 튜닝 결과]")
 display(pd.DataFrame(threshold_tuning_results))
 # threshold가 0.25일 때 precision, recall, f1-score가 가장 균형잡힌 결과를 가져옴
+
+## 최종 정리
+final_test_model = LogisticRegression(penalty="l2", C=1.0, class_weight=None, solver="lbfgs", max_iter=3000, random_state=42)
+final_test_model.fit(x_train, y_train)
+
+y_proba_test = final_test_model.predict_proba(x_test)[:, 1]
+
+final_th = 0.25
+
+# train 데이터셋 성능
+y_proba_train = final_test_model.predict_proba(x_train)[:, 1]
+y_pred_train = (y_proba_train >= final_th).astype(int)
+precision_tr, recall_tr, f1_tr, roc_auc_tr, pr_auc_tr, logloss_tr = evaluate_model(y_train, y_pred_train, y_proba_train)
+
+# valid 데이터셋 성능
+y_proba_valid = final_test_model.predict_proba(x_valid)[:, 1]
+y_pred_valid = (y_proba_valid >= final_th).astype(int)
+precision_val, recall_val, f1_val, roc_auc_val, pr_auc_val, logloss_val = evaluate_model(y_valid, y_pred_valid, y_proba_valid)
+
+# test 데이터셋 성능
+y_proba_test = final_test_model.predict_proba(x_test)[:, 1]
+y_pred_test = (y_proba_test >= final_th).astype(int)
+precision_test, recall_test, f1_test, roc_auc_test, pr_auc_test, logloss_test = evaluate_model(y_test, y_pred_test, y_proba_test)
+
+
+# 최종 모델 성능
+final_perf_df = pd.DataFrame([{
+    "데이터 셋": "훈련 데이터",
+    "Precision": round(precision_tr, 4),
+    "Recall": round(recall_tr, 4),
+    "F1-Score": round(f1_tr, 4),
+    "ROC-AUC": round(roc_auc_tr, 4),
+    "PR-AUC": round(pr_auc_tr, 4),
+    "LogLoss": round(logloss_tr, 4)
+}, {
+    "데이터 셋": "검증 데이터",
+    "Precision": round(precision_val, 4),
+    "Recall": round(recall_val, 4),
+    "F1-Score": round(f1_val, 4),
+    "ROC-AUC": round(roc_auc_val, 4),
+    "PR-AUC": round(pr_auc_val, 4),
+    "LogLoss": round(logloss_val, 4)
+}, {
+    "데이터 셋": "테스트 데이터",
+    "Precision": round(precision_test, 4),
+    "Recall": round(recall_test, 4),
+    "F1-Score": round(f1_test, 4),
+    "ROC-AUC": round(roc_auc_test, 4),
+    "PR-AUC": round(pr_auc_test, 4),
+    "LogLoss": round(logloss_test, 4)
+}])
+
+print("\n[최종 모델 성능]")
+display(final_perf_df)
+
+# 변수 영향력 TOP 10 정리
+feature_names_final = list(preprocessor.get_feature_names_out())
+final_coef_df = pd.DataFrame({"Feature": feature_names_final, 
+                              "Coefficient": final_test_model.coef_[0].round(4)})
+
+# 영향력 크기(양수 가중치)가 높은 순서대로 예쁘게 정렬 및 컬럼명 정리
+final_coef_df = final_coef_df.sort_values(by='Coefficient', ascending=False).head(10)
+final_coef_df.reset_index(drop=True, inplace=True)
+
+print("\n [최종 모델 기준] 영향력 TOP 10")
+display(final_coef_df)

@@ -254,3 +254,68 @@ print("\n[PR-AUC 1등 모델 기준 Threshold 튜닝 결과]")
 rf_tuning_df = pd.DataFrame(rf_threshold_tuning_results)
 display(rf_tuning_df)
 # PR-AUC 1등 모델 기준으로 Threshold 0.25가 가장 균형있음
+
+## 최종 정리
+# pr-auc 1등 모델로 하면 과대적합이 일어나서 max_depth를 10->4로 낮추고 min_samples_split은 5-> 10으로 튜닝
+final_rf_master = RandomForestClassifier(
+    n_estimators=300,
+    max_depth=4,
+    min_samples_split=10,
+    class_weight=None,
+    random_state=42,
+    n_jobs=-1
+)
+final_rf_master.fit(x_train, y_train)
+
+final_rf_th = 0.25
+
+# [Train 데이터셋 채점]
+y_proba_rf_train = final_rf_master.predict_proba(x_train)[:, 1]
+y_pred_rf_train = (y_proba_rf_train >= final_rf_th).astype(int)
+p_tr, r_tr, f_tr, roc_tr, pr_tr, log_tr = evaluate_model(y_train, y_pred_rf_train, y_proba_rf_train)
+
+# [Valid 데이터셋 채점]
+y_proba_rf_valid = final_rf_master.predict_proba(x_valid)[:, 1]
+y_pred_rf_valid = (y_proba_rf_valid >= final_rf_th).astype(int)
+p_va, r_va, f_va, roc_va, pr_va, log_va = evaluate_model(y_valid, y_pred_rf_valid, y_proba_rf_valid)
+
+# [Test 데이터셋 채점]
+y_proba_rf_test = final_rf_master.predict_proba(x_test)[:, 1]
+y_pred_rf_test = (y_proba_rf_test >= final_rf_th).astype(int)
+p_te, r_te, f_te, roc_te, pr_te, log_te = evaluate_model(y_test, y_pred_rf_test, y_proba_rf_test)
+
+# 판다스 데이터프레임으로 3대 데이터셋 성적 통합
+rf_total_performance_df = pd.DataFrame([
+    {
+        "데이터셋 (Dataset)": "훈련 데이터 (Train_70%)",
+        "Precision": round(p_tr, 4), "Recall": round(r_tr, 4), "F1-Score": round(f_tr, 4),
+        "ROC-AUC": round(roc_tr, 4), "PR-AUC": round(pr_tr, 4),"LogLoss": round(log_tr, 4)
+    },
+    {
+        "데이터셋 (Dataset)": "검증 데이터 (Valid_15%)",
+        "Precision": round(p_va, 4), "Recall": round(r_va, 4), "F1-Score": round(f_va, 4), 
+        "ROC-AUC": round(roc_va, 4), "PR-AUC": round(pr_va, 4), "LogLoss": round(log_va, 4)
+    },
+    {
+        "데이터셋 (Dataset)": "실전 데이터 (Test_15%)",
+        "Precision": round(p_te, 4), "Recall": round(r_te, 4), "F1-Score": round(f_te, 4),
+        "ROC-AUC": round(roc_te, 4), "PR-AUC": round(pr_te, 4), "LogLoss": round(log_te, 4)
+    }
+])
+
+print("[최종 모델 성능]")
+display(rf_total_performance_df)
+
+
+# Feature Importance 추출 및 정리
+feature_names_rf = list(preprocessor.get_feature_names_out())
+final_rf_importances = pd.DataFrame({
+    'Feature': feature_names_rf,
+    'Importance': final_rf_master.feature_importances_.round(4)})
+
+# 중요도가 높은 순서대로 예쁘게 정렬
+final_rf_importances = final_rf_importances.sort_values(by='Importance', ascending=False).head(10)
+final_rf_importances.reset_index(drop=True, inplace=True)
+
+print("\n [최종 모델 기준] 랜덤 포레스트 변수 중요도 TOP 10")
+display(final_rf_importances)
