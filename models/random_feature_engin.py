@@ -3,11 +3,48 @@ from sklearn.model_selection import train_test_split
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, OrdinalEncoder
 from IPython.display import display
+import numpy as np
 df = pd.read_csv("data/data_team7.csv")
 print(df.head())
 print(df.columns)
 df.info()
 
+
+## 피처 엔지니어링
+def apply_advanced_feature_engineering(df):
+    df_new = df.copy()
+
+    df_new['Total_Satisfaction_Score'] = (
+        df_new['EnvironmentSatisfaction'] + 
+        df_new['JobSatisfaction'] + 
+        df_new['RelationshipSatisfaction'] + 
+        df_new['WorkLifeBalance']
+    )
+
+    df_new['Income_Per_WorkingYear'] = df_new['MonthlyIncome'] / (df_new['TotalWorkingYears'] + 1)
+    df_new['Income_Per_YearAtCompany'] = df_new['MonthlyIncome'] / (df_new['YearsAtCompany'] + 1)
+    df_new['Income_Per_Level'] = df_new['MonthlyIncome'] / df_new['JobLevel']
+    df_new['Cost_Effectiveness'] = df_new['PercentSalaryHike'] / df_new['PerformanceRating']
+
+    is_overtime = df_new['OverTime'].apply(lambda x: 1 if x == 'Yes' or x == 1 else 0)
+    
+    wlb_reversed = 5 - df_new['WorkLifeBalance'] #워라벨은 높을수록 좋은거였으니 번아웃 리스크 피쳐를 위해 낮은게 좋은 것으로 변환
+    df_new['Burnout_Risk'] = is_overtime + wlb_reversed
+    df_new['Sat_WLB_Interaction'] = df_new['Total_Satisfaction_Score'] * df_new['WorkLifeBalance']
+
+    df_new['Promotion_Speed_Index'] = df_new['JobLevel'] / (df_new['TotalWorkingYears'] + 1)
+    df_new['Stagnation_Index'] = df_new['YearsSinceLastPromotion'] / (df_new['YearsAtCompany'] + 1) 
+    df_new['Job_Hopping_Index'] = df_new['NumCompaniesWorked'] / (df_new['TotalWorkingYears'] + 1)
+    
+    df_new['Loyalty_Ratio'] = np.where(
+        df_new['TotalWorkingYears'] > 0,
+        df_new['YearsAtCompany'] / df_new['TotalWorkingYears'],
+        0
+    )
+
+    return df_new
+
+## 전처리
 def get_hr_data(filepath, model_type='tree'):
     """
     model_type: 'linear_xgb' (원-핫 인코딩) 또는 'lgbm_tabnet' (오디널 인코딩)
@@ -16,21 +53,12 @@ def get_hr_data(filepath, model_type='tree'):
     df = pd.read_csv(filepath)
     target_col = 'Attrition'
     
-    # 피처 엔지니어링
-    # 1) 워라밸 파괴 지수 (야근 여부 수치화 x 출퇴근 거리)
-    df['OverTime_Numeric'] = df['OverTime'].apply(lambda x: 1 if x == 'Yes' else 0)
-    df['Overwork_Fatigue_Index'] = df['OverTime_Numeric'] * df['DistanceFromHome']
-    
-    # 2) 체감 보상 불공정 지수 (총 겨력 대비 월 소득 비율, 분모 0 방지)
-    df['Income_Per_WorkingYear'] = df['MonthlyIncome'] / (df['TotalWorkingYears'] + 1)
-    
-    # 3) 종합 조직 안착도 점수 ( 3대 만족도 지표 합산)
-    df['Total_Satisfaction_Score'] = (df['EnvironmentSatisfaction'] + df['JobSatisfaction'] + df['RelationshipSatisfaction'])
+    df_eng = apply_advanced_feature_engineering(df)
     
     
-    X = df.drop(target_col, axis=1)
+    X = df_eng.drop(target_col, axis=1)
     # Target이 'Yes'/'No'라면 1/0으로 변환
-    y = df[target_col].apply(lambda x: 1 if x == 'Yes' else 0) if df[target_col].dtype == 'object' else df[target_col]
+    y = df_eng[target_col].apply(lambda x: 1 if x == 'Yes' else 0) if df_eng[target_col].dtype == 'object' else df_eng[target_col]
 
     # 2. 공정성을 위한 고정된 분할 (70:15:15)
     X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.3, stratify=y, random_state=42)
@@ -38,8 +66,12 @@ def get_hr_data(filepath, model_type='tree'):
 
     # 3. 변수 타입별 분류
     categorical_cols = ['BusinessTravel', 'Department','EducationField','Gender', 'JobRole', 'MaritalStatus', 'OverTime', ]
-    numerical_cols = ['Age', 'DailyRate', 'DistanceFromHome', 'Education','EnvironmentSatisfaction','HourlyRate','JobInvolvement','JobLevel','JobSatisfaction','MonthlyIncome', 'MonthlyRate', 'PercentSalaryHike', 'PerformanceRating', 'RelationshipSatisfaction', 'StockOptionLevel', 'TotalWorkingYears', 'TrainingTimesLastYear', 'WorkLifeBalance', 'YearsAtCompany', 'YearsInCurrentRole', 'YearsSinceLastPromotion', 'YearsWithCurrManager','Overwork_Fatigue_Index', 'Income_Per_WorkingYear', 'Total_Satisfaction_Score']
-
+    numerical_cols = ['Age', 'DailyRate', 'DistanceFromHome', 'Education','EnvironmentSatisfaction','HourlyRate',
+                      'JobInvolvement','JobLevel','JobSatisfaction','MonthlyIncome', 'MonthlyRate', 'PercentSalaryHike', 
+                      'PerformanceRating', 'RelationshipSatisfaction', 'StockOptionLevel', 'TotalWorkingYears', 
+                      'TrainingTimesLastYear', 'WorkLifeBalance', 'YearsAtCompany', 'YearsInCurrentRole', 
+                      'YearsSinceLastPromotion', 'YearsWithCurrManager', 'Total_Satisfaction_Score', 'Income_Per_WorkingYear', 'Income_Per_YearAtCompany', 'Income_Per_Level',
+                      'Cost_Effectiveness', 'Burnout_Risk', 'Sat_WLB_Interaction', 'Promotion_Speed_Index', 'Stagnation_Index', 'Job_Hopping_Index', 'Loyalty_Ratio']
 
     # 4. 모델 타입에 따른 전처리기(ColumnTransformer) 구성
     if model_type == 'linear_xgb':
