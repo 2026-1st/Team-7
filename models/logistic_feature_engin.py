@@ -4,12 +4,16 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, OrdinalEncoder
 from IPython.display import display
 import numpy as np
+
+# 데이터 로드 및 확인
 df = pd.read_csv("data/data_team7.csv")
 print(df.head())
 print(df.columns)
 df.info()
 
-## 피처 엔지니어링
+# ==========================================
+# 피처 엔지니어링
+# ==========================================
 def apply_advanced_feature_engineering(df):
     df_new = df.copy()
 
@@ -43,7 +47,9 @@ def apply_advanced_feature_engineering(df):
 
     return df_new
 
-## 데이터 전처리
+# ==========================================
+# 데이터 전처리
+# ==========================================
 def get_hr_data(filepath, model_type='tree'):
     """
     model_type: 'linear_xgb' (원-핫 인코딩) 또는 'lgbm_tabnet' (오디널 인코딩)
@@ -65,12 +71,11 @@ def get_hr_data(filepath, model_type='tree'):
     # 3. 변수 타입별 분류
     categorical_cols = ['BusinessTravel', 'Department','EducationField','Gender', 'JobRole', 'MaritalStatus', 'OverTime', ]
     numerical_cols = ['Age', 'DailyRate', 'DistanceFromHome', 'Education','EnvironmentSatisfaction','HourlyRate',
-                      'JobInvolvement','JobLevel','JobSatisfaction','MonthlyIncome', 'MonthlyRate', 'PercentSalaryHike', 
+                      'JobInvolvement','JobLevel','JobSatisfaction','MonthlyIncome', 'MonthlyRate','NumCompaniesWorked', 'PercentSalaryHike', 
                       'PerformanceRating', 'RelationshipSatisfaction', 'StockOptionLevel', 'TotalWorkingYears', 
                       'TrainingTimesLastYear', 'WorkLifeBalance', 'YearsAtCompany', 'YearsInCurrentRole', 
                       'YearsSinceLastPromotion', 'YearsWithCurrManager', 'Total_Satisfaction_Score', 'Income_Per_WorkingYear', 'Income_Per_YearAtCompany', 'Income_Per_Level',
                       'Cost_Effectiveness', 'Burnout_Risk', 'Sat_WLB_Interaction', 'Promotion_Speed_Index', 'Stagnation_Index', 'Job_Hopping_Index', 'Loyalty_Ratio']
-
 
     # 4. 모델 타입에 따른 전처리기(ColumnTransformer) 구성
     if model_type == 'linear_xgb':
@@ -94,7 +99,185 @@ def get_hr_data(filepath, model_type='tree'):
 
     return X_train_processed, X_valid_processed, X_test_processed, y_train, y_valid, y_test, preprocessor
 
-x_train, x_valid, x_test, y_train, y_valid, y_test, preprocessor = get_hr_data("data/data_team7.csv", model_type='linear_xgb')
+# 피처 엔지니어링이 반영된 셋 로드
+x_train_eng, x_valid_eng, x_test_eng, y_train, y_valid, y_test, preprocessor_eng = get_hr_data("data/data_team7.csv", model_type='linear_xgb')
+
+
+# ==========================================
+# 평가지표 함수
+# ==========================================
+from sklearn.metrics import (precision_score, recall_score, f1_score, roc_auc_score, average_precision_score, log_loss)
+
+def evaluate_model(y_test, y_pred, y_proba):
+    precision = precision_score(y_test, y_pred)
+    recall = recall_score(y_test, y_pred)
+    f1 = f1_score(y_test, y_pred)
+    roc_auc = roc_auc_score(y_test, y_proba)
+    pr_auc = average_precision_score(y_test, y_proba)
+    logloss = log_loss(y_test, y_proba)
+    
+    return precision, recall, f1, roc_auc, pr_auc, logloss
+
+
+# ==============================================================================
+# 1단계: 그리드 서치 및 지표별 최적 가중치 비교 (피처 엔지니어링 전 원본 데이터 기준)
+# ==============================================================================
+print("\n" + "="*35 + " [그리드 서치 및 지표별 최적 모델 탐색] " + "="*35)
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import GridSearchCV
+
+# 원본용 전처리 별도 정의
+categorical_cols_pre = ['BusinessTravel', 'Department','EducationField','Gender', 'JobRole', 'MaritalStatus', 'OverTime']
+numerical_cols_pre = ['Age', 'DailyRate', 'DistanceFromHome', 'Education','EnvironmentSatisfaction','HourlyRate','JobInvolvement','JobLevel','JobSatisfaction','MonthlyIncome', 'MonthlyRate', 'NumCompaniesWorked', 'PercentSalaryHike', 'PerformanceRating', 'RelationshipSatisfaction', 'StockOptionLevel', 'TotalWorkingYears', 'TrainingTimesLastYear', 'WorkLifeBalance', 'YearsAtCompany', 'YearsInCurrentRole', 'YearsSinceLastPromotion', 'YearsWithCurrManager']
+
+preprocessor_pre = ColumnTransformer(
+    transformers=[
+        ('num', StandardScaler(), numerical_cols_pre),
+        ('cat', OneHotEncoder(drop='first', handle_unknown='ignore', sparse_output=False), categorical_cols_pre)
+    ]
+)
+
+df_ori = pd.read_csv("data/data_team7.csv")
+y_ori = df_ori['Attrition'].apply(lambda x: 1 if x == 'Yes' else 0)
+X_ori = df_ori.drop('Attrition', axis=1)
+
+# 70:15:15로 정확하게 순차 분할을 수행
+X_train_ori, X_temp_ori, y_train, y_temp = train_test_split(X_ori, y_ori, test_size=0.3, stratify=y_ori, random_state=42)
+X_valid_ori, X_test_ori, y_valid, y_test = train_test_split(X_temp_ori, y_temp, test_size=0.5, stratify=y_temp, random_state=42)
+
+x_train_pre = preprocessor_pre.fit_transform(X_train_ori)
+x_valid_pre = preprocessor_pre.transform(X_valid_ori)
+
+param_grid = [
+    {'penalty': ['l1', 'l2'], 'C': [0.1, 1.0, 10.0, 100.0], 'class_weight': [None, 'balanced'], 'solver': ['liblinear', 'saga']},
+    {'penalty': ['l2'], 'C': [0.1, 1.0, 10.0, 100.0], 'class_weight': [None, 'balanced'], 'solver': ['lbfgs']}
+]
+
+base_model = LogisticRegression(max_iter=3000, random_state=42)
+scoring_metrics = {
+    'precision': 'precision', 'recall': 'recall', 'f1': 'f1', 
+    'roc_auc': 'roc_auc', 'pr_auc': 'average_precision', 'logloss': 'neg_log_loss'
+}
+
+grid_search = GridSearchCV(estimator=base_model, param_grid=param_grid, scoring=scoring_metrics, refit=False, cv=5, n_jobs=-1)
+grid_search.fit(x_train_pre, y_train)
+
+cv_results = pd.DataFrame(grid_search.cv_results_)
+report_df = pd.DataFrame({
+    'Class_Weight': cv_results['param_class_weight'], 'Penalty': cv_results['param_penalty'],
+    'C': cv_results['param_C'], 'Solver': cv_results['param_solver'],
+    'Precision': cv_results['mean_test_precision'].round(4), 'Recall': cv_results['mean_test_recall'].round(4),
+    'F1-Score': cv_results['mean_test_f1'].round(4), 'ROC-AUC': cv_results['mean_test_roc_auc'].round(4),
+    'PR-AUC': cv_results['mean_test_pr_auc'].round(4), 'LogLoss': (cv_results['mean_test_logloss'] * -1).round(4)
+})
+
+for metric, asc in [('Precision', False), ('Recall', False), ('F1-Score', False), ('ROC-AUC', False), ('PR-AUC', False), ('LogLoss', True)]:
+    print(f"\n {metric} {'낮은' if asc else '높은'} 순 TOP 5")
+    display(report_df.sort_values(by=metric, ascending=asc).head(5))
+
+top_combinations = [
+    {"name": "Model_Precision_Top (Index 1)", "class_weight": None, "penalty": "l1", "solver": "saga", "C": 0.1},
+    {"name": "Model_Recall_Top (Index 4)", "class_weight": "balanced", "penalty": "l1", "solver": "liblinear", "C": 0.1},
+    {"name": "Model_F1_Top (Index 18)", "class_weight": None, "penalty": "l2", "solver": "liblinear", "C": 10.0},
+    {"name": "Model_ROCAUC_Top (Index 27)", "class_weight": None, "penalty": "l2", "solver": "saga", "C": 100.0},
+    {"name": "Model_PRAUC_Top (Index 34)", "class_weight": None, "penalty": "l2", "solver": "lbfgs", "C": 1.0},
+    {"name": "Model_LogLoss_Top (Index 11)", "class_weight": None, "penalty": "l2", "solver": "saga", "C": 1.0}
+]
+
+feature_names_pre = list(preprocessor_pre.get_feature_names_out())
+coef_comparison_df = pd.DataFrame({"Feature": feature_names_pre})
+valid_results = []
+
+for comb in top_combinations:
+    model = LogisticRegression(penalty=comb["penalty"], C=comb["C"], class_weight=comb["class_weight"], solver=comb["solver"], max_iter=3000, random_state=42)
+    model.fit(x_train_pre, y_train)
+    y_pred_val = model.predict(x_valid_pre)
+    y_proba_val = model.predict_proba(x_valid_pre)[:, 1]
+    precision, recall, f1, roc_auc, pr_auc, logloss = evaluate_model(y_valid, y_pred_val, y_proba_val)
+    
+    valid_results.append({
+        "Model": comb["name"].split(" ")[0], "Precision": round(precision, 4), "Recall": round(recall, 4),
+        "F1-Score": round(f1, 4), "ROC-AUC": round(roc_auc, 4), "PR-AUC": round(pr_auc, 4), "LogLoss": round(logloss, 4)
+    })
+    coef_comparison_df[comb["name"]] = model.coef_[0].round(4)
+
+for comb in top_combinations:
+    print(f"\n[{comb['name'].split(' ')[0]}] 기준 변수 정렬")
+    display(coef_comparison_df[['Feature', comb["name"]]].sort_values(by=comb["name"], ascending=False).head(10))
+
+print("\n[각 최적 조합별 검증 결과]")
+display(pd.DataFrame(valid_results))
+
+
+# ==========================================
+# 2단계: PR-AUC 1등 모델 기준 Threshold 튜닝
+# ==========================================
+print("\n" + "="*40 + " [PR-AUC 1등 모델 기준 Threshold 튜닝] " + "="*40)
+best_lr_model = LogisticRegression(penalty="l2", C=1.0, class_weight=None, solver="lbfgs", max_iter=3000, random_state=42)
+best_lr_model.fit(x_train_pre, y_train)
+y_proba_lr_valid = best_lr_model.predict_proba(x_valid_pre)[:, 1]
+
+thresholds = np.arange(0.1, 0.95, 0.05)
+threshold_tuning_results = []
+
+for th in thresholds:
+    y_pred_custom = (y_proba_lr_valid >= th).astype(int)
+    precision, recall, f1, roc_auc, pr_auc, logloss = evaluate_model(y_valid, y_pred_custom, y_proba_lr_valid)
+    threshold_tuning_results.append({
+        "Threshold": round(th, 2), "Precision": round(precision, 4), "Recall": round(recall, 4),
+        "F1-Score": round(f1, 4), "ROC-AUC": round(roc_auc, 4), "PR-AUC": round(pr_auc, 4), "LogLoss": round(logloss, 4)
+    })
+display(pd.DataFrame(threshold_tuning_results))
+
+
+# ==============================================================================
+# 3단계: [최종 모델 성능] 데이터 분할별 로지스틱 분류 성능 비교 및 변수 가중치 TOP 10
+# ==============================================================================
+print("\n" + "="*40 + " [최종 모델 성능] 데이터 분할별 로지스틱 분류 성능 비교 " + "="*40)
+final_master_model = LogisticRegression(penalty="l2", C=1.0, class_weight=None, solver="lbfgs", max_iter=3000, random_state=42)
+final_master_model.fit(x_train_pre, y_train)
+
+final_th = 0.25
+
+p_tr1, r_tr1, f_tr1, roc_tr1, pr_tr1, log_tr1 = evaluate_model(y_train, (final_master_model.predict_proba(x_train_pre)[:, 1] >= final_th).astype(int), final_master_model.predict_proba(x_train_pre)[:, 1])
+p_va1, r_va1, f_va1, roc_va1, pr_va1, log_va1 = evaluate_model(y_valid, (final_master_model.predict_proba(x_valid_pre)[:, 1] >= final_th).astype(int), final_master_model.predict_proba(x_valid_pre)[:, 1])
+X_test_pre = preprocessor_pre.transform(X_test_ori)
+p_te1, r_te1, f_te1, roc_te1, pr_te1, log_te1 = evaluate_model(y_test, (final_master_model.predict_proba(X_test_pre)[:, 1] >= final_th).astype(int), final_master_model.predict_proba(X_test_pre)[:, 1])
+
+total_performance_df = pd.DataFrame([
+    {"데이터셋 (Dataset)": "훈련 데이터 (Train_70%)", "Precision": round(p_tr1, 4), "Recall": round(r_tr1, 4), "F1-Score": round(f_tr1, 4), "ROC-AUC": round(roc_tr1, 4), "PR-AUC": round(pr_tr1, 4), "LogLoss": round(log_tr1, 4)},
+    {"데이터셋 (Dataset)": "검증 데이터 (Valid_15%)", "Precision": round(p_va1, 4), "Recall": round(r_va1, 4), "F1-Score": round(f_va1, 4), "ROC-AUC": round(roc_va1, 4), "PR-AUC": round(pr_va1, 4), "LogLoss": round(log_va1, 4)},
+    {"데이터셋 (Dataset)": "실전 데이터 (Test_15%)", "Precision": round(p_te1, 4), "Recall": round(r_te1, 4), "F1-Score": round(f_te1, 4), "ROC-AUC": round(roc_te1, 4), "PR-AUC": round(pr_te1, 4), "LogLoss": round(log_te1, 4)}
+], index=['0', '1', '2'])
+display(total_performance_df)
+
+final_coef_df = pd.DataFrame({'인사 요인 변수 (Feature)': feature_names_pre, '퇴사 유발 영향력 (Coefficient)': final_master_model.coef_[0].round(4)}).sort_values(by='퇴사 유발 영향력 (Coefficient)', ascending=False).head(10).reset_index(drop=True)
+print("\n [최종 모델 기준] 퇴사 유발 핵심 요인 TOP 10")
+display(final_coef_df)
+
+
+# ==============================================================================
+# 4단계: [피처 엔지니어링 반영 후] 로지스틱 회귀 성능 비교 및 변수 가중치 TOP 10
+# ==============================================================================
+print("\n" + "="*40 + " [피처 엔지니어링 반영 후] 로지스틱 회귀 성능 " + "="*40)
+lr_model_post = LogisticRegression(penalty="l2", C=1.0, class_weight=None, solver="lbfgs", max_iter=3000, random_state=42)
+lr_model_post.fit(x_train_eng, y_train)
+
+p_tr2, r_tr2, f_tr2, roc_tr2, pr_tr2, log_tr2 = evaluate_model(y_train, (lr_model_post.predict_proba(x_train_eng)[:, 1] >= final_th).astype(int), lr_model_post.predict_proba(x_train_eng)[:, 1])
+p_va2, r_va2, f_va2, roc_va2, pr_va2, log_va2 = evaluate_model(y_valid, (lr_model_post.predict_proba(x_valid_eng)[:, 1] >= final_th).astype(int), lr_model_post.predict_proba(x_valid_eng)[:, 1])
+p_te2, r_te2, f_te2, roc_te2, pr_te2, log_te2 = evaluate_model(y_test, (lr_model_post.predict_proba(x_test_eng)[:, 1] >= final_th).astype(int), lr_model_post.predict_proba(x_test_eng)[:, 1])
+
+feature_eng_perf_df = pd.DataFrame([
+    {"데이터셋 (Dataset)": "훈련 데이터 (Train_70%)", "Precision": round(p_tr2, 4), "Recall": round(r_tr2, 4), "F1-Score": round(f_tr2, 4), "ROC-AUC": round(roc_tr2, 4), "PR-AUC": round(pr_tr2, 4), "LogLoss": round(log_tr2, 4)},
+    {"데이터셋 (Dataset)": "검증 데이터 (Valid_15%)", "Precision": round(p_va2, 4), "Recall": round(r_va2, 4), "F1-Score": round(f_va2, 4), "ROC-AUC": round(roc_va2, 4), "PR-AUC": round(pr_va2, 4), "LogLoss": round(log_va2, 4)},
+    {"데이터셋 (Dataset)": "실전 데이터 (Test_15%)", "Precision": round(p_te2, 4), "Recall": round(r_te2, 4), "F1-Score": round(f_te2, 4), "ROC-AUC": round(roc_te2, 4), "PR-AUC": round(pr_te2, 4), "LogLoss": round(log_te2, 4)}
+])
+display(feature_eng_perf_df)
+
+feature_names_eng = list(preprocessor_eng.get_feature_names_out())
+coef_df = pd.DataFrame({"Feature": feature_names_eng, "Coefficient": lr_model_post.coef_[0].round(4)})
+print("\n [피처 엔지니어링 반영 후] 로지스틱 회귀 변수 가중치 TOP 10")
+display(coef_df.sort_values(by="Coefficient", ascending=False).head(10))
 
 
 
