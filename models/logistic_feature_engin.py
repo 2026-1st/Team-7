@@ -120,7 +120,7 @@ def evaluate_model(y_test, y_pred, y_proba):
 
 
 # ==============================================================================
-# 1단계: 그리드 서치 및 지표별 최적 가중치 비교 (피처 엔지니어링 전 원본 데이터 기준)
+# 그리드 서치 및 지표별 최적 가중치 비교 (피처 엔지니어링 전 원본 데이터 기준)
 # ==============================================================================
 print("\n" + "="*35 + " [그리드 서치 및 지표별 최적 모델 탐색] " + "="*35)
 from sklearn.linear_model import LogisticRegression
@@ -209,35 +209,14 @@ print("\n[각 최적 조합별 검증 결과]")
 display(pd.DataFrame(valid_results))
 
 
-# ==========================================
-# 2단계: PR-AUC 1등 모델 기준 Threshold 튜닝
-# ==========================================
-print("\n" + "="*40 + " [PR-AUC 1등 모델 기준 Threshold 튜닝] " + "="*40)
-best_lr_model = LogisticRegression(penalty="l2", C=1.0, class_weight=None, solver="lbfgs", max_iter=3000, random_state=42)
-best_lr_model.fit(x_train_pre, y_train)
-y_proba_lr_valid = best_lr_model.predict_proba(x_valid_pre)[:, 1]
-
-thresholds = np.arange(0.1, 0.95, 0.05)
-threshold_tuning_results = []
-
-for th in thresholds:
-    y_pred_custom = (y_proba_lr_valid >= th).astype(int)
-    precision, recall, f1, roc_auc, pr_auc, logloss = evaluate_model(y_valid, y_pred_custom, y_proba_lr_valid)
-    threshold_tuning_results.append({
-        "Threshold": round(th, 2), "Precision": round(precision, 4), "Recall": round(recall, 4),
-        "F1-Score": round(f1, 4), "ROC-AUC": round(roc_auc, 4), "PR-AUC": round(pr_auc, 4), "LogLoss": round(logloss, 4)
-    })
-display(pd.DataFrame(threshold_tuning_results))
-
-
 # ==============================================================================
-# 3단계: [최종 모델 성능] 데이터 분할별 로지스틱 분류 성능 비교 및 변수 가중치 TOP 10
+# [최종 모델 성능] 데이터 분할별 로지스틱 분류 성능 비교 및 변수 가중치 TOP 10
 # ==============================================================================
 print("\n" + "="*40 + " [최종 모델 성능] 데이터 분할별 로지스틱 분류 성능 비교 " + "="*40)
 final_master_model = LogisticRegression(penalty="l2", C=1.0, class_weight=None, solver="lbfgs", max_iter=3000, random_state=42)
 final_master_model.fit(x_train_pre, y_train)
 
-final_th = 0.25
+final_th = 0.5
 
 p_tr1, r_tr1, f_tr1, roc_tr1, pr_tr1, log_tr1 = evaluate_model(y_train, (final_master_model.predict_proba(x_train_pre)[:, 1] >= final_th).astype(int), final_master_model.predict_proba(x_train_pre)[:, 1])
 p_va1, r_va1, f_va1, roc_va1, pr_va1, log_va1 = evaluate_model(y_valid, (final_master_model.predict_proba(x_valid_pre)[:, 1] >= final_th).astype(int), final_master_model.predict_proba(x_valid_pre)[:, 1])
@@ -257,7 +236,7 @@ display(final_coef_df)
 
 
 # ==============================================================================
-# 4단계: [피처 엔지니어링 반영 후] 로지스틱 회귀 성능 비교 및 변수 가중치 TOP 10
+# [피처 엔지니어링 반영 후] 로지스틱 회귀 성능 비교 및 변수 가중치 TOP 10
 # ==============================================================================
 print("\n" + "="*40 + " [피처 엔지니어링 반영 후] 로지스틱 회귀 성능 " + "="*40)
 lr_model_post = LogisticRegression(penalty="l2", C=1.0, class_weight=None, solver="lbfgs", max_iter=3000, random_state=42)
@@ -278,3 +257,132 @@ feature_names_eng = list(preprocessor_eng.get_feature_names_out())
 coef_df = pd.DataFrame({"Feature": feature_names_eng, "Coefficient": lr_model_post.coef_[0].round(4)})
 print("\n [피처 엔지니어링 반영 후] 로지스틱 회귀 변수 가중치 TOP 10")
 display(coef_df.sort_values(by="Coefficient", ascending=False).head(10))
+
+
+# ==============================================================================
+# [피처 엔지니어링 반영 후] 하이퍼 파라미터 그리드 서치
+# ==============================================================================
+print("\n" + "="*30 + " [피처 엔지니어링 반영 후] 2차 그리드 서치 탐색 시작 " + "="*30)
+
+# 1) 파생 변수가 포함된 x_train_eng 데이터를 기반으로 그리드 서치 수행
+grid_search_post = GridSearchCV(
+    estimator=LogisticRegression(max_iter=3000, random_state=42),
+    param_grid=param_grid, # 앞서 정의한 l1, l2, C, solver 하이퍼파라미터 그대로 활용
+    scoring=scoring_metrics,
+    refit=False,
+    cv=5,
+    n_jobs=-1
+)
+grid_search_post.fit(x_train_eng, y_train)
+
+# 2) 2차 그리드 서치 결과 정리 및 출력
+cv_results_post = pd.DataFrame(grid_search_post.cv_results_)
+report_post_df = pd.DataFrame({
+    'Class_Weight': cv_results_post['param_class_weight'],
+    'Penalty': cv_results_post['param_penalty'],
+    'C': cv_results_post['param_C'],
+    'Solver': cv_results_post['param_solver'],
+    'Precision': cv_results_post['mean_test_precision'].round(4),
+    'Recall': cv_results_post['mean_test_recall'].round(4),
+    'F1-Score': cv_results_post['mean_test_f1'].round(4),
+    'ROC-AUC': cv_results_post['mean_test_roc_auc'].round(4),
+    'PR-AUC': cv_results_post['mean_test_pr_auc'].round(4),
+    'LogLoss': (cv_results_post['mean_test_logloss'] * -1).round(4)
+})
+
+# 피처 엔지니어링 데이터 기준 PR-AUC 대장 모델 조합 확인용 출력
+print("\n [피처 엔지니어링 반영 후] PR-AUC 높은 순 TOP 5 조합 (새로운 최적 파라미터 후보)")
+display(report_post_df.sort_values(by='PR-AUC', ascending=False).head(5))
+
+
+# 3) 새로운 1등 하이퍼파라미터 조합으로 최종 모델 정의 및 학습
+best_penalty_post = "l1"
+best_c_post = 10.0
+best_solver_post = "liblinear"
+best_weight_post = None
+
+lr_model_post = LogisticRegression(
+    penalty=best_penalty_post, 
+    C=best_c_post, 
+    class_weight=best_weight_post, 
+    solver=best_solver_post, 
+    max_iter=3000, 
+    random_state=42
+)
+lr_model_post.fit(x_train_eng, y_train)
+
+
+# 4) 임계값 0.5 기준으로 최종 스코어 산출
+final_th = 0.5
+
+p_tr2, r_tr2, f_tr2, roc_tr2, pr_tr2, log_tr2 = evaluate_model(y_train, (lr_model_post.predict_proba(x_train_eng)[:, 1] >= final_th).astype(int), lr_model_post.predict_proba(x_train_eng)[:, 1])
+p_va2, r_va2, f_va2, roc_va2, pr_va2, log_va2 = evaluate_model(y_valid, (lr_model_post.predict_proba(x_valid_eng)[:, 1] >= final_th).astype(int), lr_model_post.predict_proba(x_valid_eng)[:, 1])
+p_te2, r_te2, f_te2, roc_te2, pr_te2, log_te2 = evaluate_model(y_test, (lr_model_post.predict_proba(x_test_eng)[:, 1] >= final_th).astype(int), lr_model_post.predict_proba(x_test_eng)[:, 1])
+
+feature_eng_perf_df = pd.DataFrame([
+    {"데이터셋 (Dataset)": "훈련 데이터 (Train_70%)", "Precision": round(p_tr2, 4), "Recall": round(r_tr2, 4), "F1-Score": round(f_tr2, 4), "ROC-AUC": round(roc_tr2, 4), "PR-AUC": round(pr_tr2, 4), "LogLoss": round(log_tr2, 4)},
+    {"데이터셋 (Dataset)": "검증 데이터 (Valid_15%)", "Precision": round(p_va2, 4), "Recall": round(r_va2, 4), "F1-Score": round(f_va2, 4), "ROC-AUC": round(roc_va2, 4), "PR-AUC": round(pr_va2, 4), "LogLoss": round(log_va2, 4)},
+    {"데이터셋 (Dataset)": "실전 데이터 (Test_15%)", "Precision": round(p_te2, 4), "Recall": round(r_te2, 4), "F1-Score": round(f_te2, 4), "ROC-AUC": round(roc_te2, 4), "PR-AUC": round(pr_te2, 4), "LogLoss": round(log_te2, 4)}
+])
+print("\n[피처 엔지니어링 및 2차 튜닝 반영 후] 로지스틱 회귀 최종 성능")
+display(feature_eng_perf_df)
+
+# 5) 새롭게 정렬된 변수 가중치 TOP 10 확인
+feature_names_eng = list(preprocessor_eng.get_feature_names_out())
+coef_df = pd.DataFrame({"Feature": feature_names_eng, "Coefficient": lr_model_post.coef_[0].round(4)})
+print("\n [피처 엔지니어링 및 2차 튜닝 반영 후] 로지스틱 회귀 변수 가중치 TOP 10")
+display(coef_df.sort_values(by="Coefficient", ascending=False).head(10))
+
+
+# ==============================================================================
+# [교차 검증]
+# ==============================================================================
+print("\n" + "="*35 + " [최종 모델 5-Fold 교차 검증 안정성 평가] " + "="*35)
+from sklearn.model_selection import cross_validate, StratifiedKFold
+
+# 타겟 비율을 공정하게 유지하며 쪼개기 위한 전략
+cv_strategy = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+# 평가할 5대 지표
+cv_scoring = {
+    'precision': 'precision',
+    'recall': 'recall',
+    'f1': 'f1',
+    'roc_auc': 'roc_auc',
+    'pr_auc': 'average_precision',
+    'logloss': 'neg_log_loss'
+}
+
+# 그리드 서치 및 최종 결정에 수렴한 최적 규격 모델 정의 (C=1.0, penalty='l2')
+final_cv_model = LogisticRegression(penalty="l2", C=1.0, class_weight=None, solver="lbfgs", max_iter=3000, random_state=42)
+
+# 1) 피처 엔지니어링 [전] 순정 데이터 기준의 최종 모델
+cv_results_pre = cross_validate(final_cv_model, x_train_pre, y_train, cv=cv_strategy, scoring=cv_scoring, n_jobs=-1)
+
+# 2) 피처 엔지니어링 [후] 파생 변수 데이터 기준의 최종 모델 
+cv_results_post = cross_validate(lr_model_post, x_train_eng, y_train, cv=cv_strategy, scoring=cv_scoring, n_jobs=-1)
+
+# 데이터프레임으로 최종 교차 검증 대조군 출력
+cv_comparison_df = pd.DataFrame([
+    {
+        "최종 모델 검증 트랙 (5-Fold CV Avg)": "피처 엔지니어링 [전] 최종 모델",
+        "Precision": round(np.mean(cv_results_pre['test_precision']), 4),
+        "Recall": round(np.mean(cv_results_pre['test_recall']), 4),
+        "F1-Score": round(np.mean(cv_results_pre['test_f1']), 4),
+        "ROC-AUC": round(np.mean(cv_results_pre['test_roc_auc']), 4),
+        "PR-AUC": round(np.mean(cv_results_pre['test_pr_auc']), 4),
+        "LogLoss": round(-1 * np.mean(cv_results_pre['test_logloss']), 4)
+    },
+    {
+        "최종 모델 검증 트랙 (5-Fold CV Avg)": "피처 엔지니어링 [후] 최종 모델",
+        "Precision": round(np.mean(cv_results_post['test_precision']), 4),
+        "Recall": round(np.mean(cv_results_post['test_recall']), 4),
+        "F1-Score": round(np.mean(cv_results_post['test_f1']), 4),
+        "ROC-AUC": round(np.mean(cv_results_post['test_roc_auc']), 4),
+        "PR-AUC": round(np.mean(cv_results_post['test_pr_auc']), 4),
+        "LogLoss": round(-1 * np.mean(cv_results_post['test_logloss']), 4)
+    }
+])
+
+print("\n[최종 검증] 하이퍼파라미터 고정 후 피처 엔지니어링 전/후 교차 검증 비교")
+display(cv_comparison_df)
