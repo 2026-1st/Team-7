@@ -174,47 +174,13 @@ report_df = pd.DataFrame({
 print("\n [순정 데이터] PR-AUC 높은 순 TOP 5 조합")
 display(report_df.sort_values(by='PR-AUC', ascending=False).head(5))
 
-best_comb_pre = {"class_weight": None, "penalty": "l2", "solver": "lbfgs", "C": 1.0}
-
-final_master_model_pre = LogisticRegression(
-    penalty=best_comb_pre["penalty"], 
-    C=best_comb_pre["C"], 
-    class_weight=best_comb_pre["class_weight"], 
-    solver=best_comb_pre["solver"], 
-    max_iter=3000, 
-    random_state=42
-)
-final_master_model_pre.fit(x_train_pre, y_train)
-
-# 검증 데이터 셋 채점
-y_pred_val = final_master_model_pre.predict(x_valid_pre)
-y_proba_val = final_master_model_pre.predict_proba(x_valid_pre)[:, 1]
-precision, recall, f1, roc_auc, pr_auc, logloss = evaluate_model(y_valid, y_pred_val, y_proba_val)
-
-valid_results = [{
-    "Model": "LR_PR_AUC_Top_Model", "Precision": round(precision, 4), "Recall": round(recall, 4),
-    "F1-Score": round(f1, 4), "ROC-AUC": round(roc_auc, 4), "PR-AUC": round(pr_auc, 4), "LogLoss": round(logloss, 4)
-}]
-
-feature_names_pre = list(preprocessor_pre.get_feature_names_out())
-coef_df_pre = pd.DataFrame({
-    "Feature": feature_names_pre, 
-    "Coefficient": final_master_model_pre.coef_[0].round(4)
-})
-
-print("\n 기준 원본 데이터 변수 영향력(Coefficient) TOP 10")
-display(coef_df_pre.sort_values(by="Coefficient", ascending=False).head(10))
-
-print("\n[최적 조합의 검증 데이터 결과]")
-display(pd.DataFrame(valid_results))
-
 
 
 # ==============================================================================
 # [최종 모델 성능] 데이터 분할별 로지스틱 분류 성능 비교 및 변수 가중치 TOP 10
 # ==============================================================================
 print("\n" + "="*40 + " [최종 모델 성능] 데이터 분할별 로지스틱 분류 성능 비교 " + "="*40)
-final_master_model = LogisticRegression(penalty="l2", C=1.0, class_weight=None, solver="lbfgs", max_iter=3000, random_state=42)
+final_master_model = LogisticRegression(penalty="l2", C=1.0, class_weight=None, solver="liblinear", max_iter=3000, random_state=42)
 final_master_model.fit(x_train_pre, y_train)
 
 final_th = 0.5
@@ -231,33 +197,11 @@ total_performance_df = pd.DataFrame([
 ], index=['0', '1', '2'])
 display(total_performance_df)
 
-final_coef_df = pd.DataFrame({'인사 요인 변수 (Feature)': feature_names_pre, '퇴사 유발 영향력 (Coefficient)': final_master_model.coef_[0].round(4)}).sort_values(by='퇴사 유발 영향력 (Coefficient)', ascending=False).head(10).reset_index(drop=True)
+final_coef_df = pd.DataFrame({'인사 요인 변수 (Feature)': list(preprocessor_pre.get_feature_names_out()), 
+    '퇴사 유발 영향력 (Coefficient)': final_master_model.coef_[0].round(4)}).sort_values(by='퇴사 유발 영향력 (Coefficient)', ascending=False).head(10).reset_index(drop=True)
+
 print("\n [최종 모델 기준] 퇴사 유발 핵심 요인 TOP 10")
 display(final_coef_df)
-
-
-# ==============================================================================
-# [피처 엔지니어링 반영 후] 로지스틱 회귀 성능 비교 및 변수 가중치 TOP 10
-# ==============================================================================
-print("\n" + "="*40 + " [피처 엔지니어링 반영 후] 로지스틱 회귀 성능 " + "="*40)
-lr_model_post = LogisticRegression(penalty="l2", C=1.0, class_weight=None, solver="lbfgs", max_iter=3000, random_state=42)
-lr_model_post.fit(x_train_eng, y_train)
-
-p_tr2, r_tr2, f_tr2, roc_tr2, pr_tr2, log_tr2 = evaluate_model(y_train, (lr_model_post.predict_proba(x_train_eng)[:, 1] >= final_th).astype(int), lr_model_post.predict_proba(x_train_eng)[:, 1])
-p_va2, r_va2, f_va2, roc_va2, pr_va2, log_va2 = evaluate_model(y_valid, (lr_model_post.predict_proba(x_valid_eng)[:, 1] >= final_th).astype(int), lr_model_post.predict_proba(x_valid_eng)[:, 1])
-p_te2, r_te2, f_te2, roc_te2, pr_te2, log_te2 = evaluate_model(y_test, (lr_model_post.predict_proba(x_test_eng)[:, 1] >= final_th).astype(int), lr_model_post.predict_proba(x_test_eng)[:, 1])
-
-feature_eng_perf_df = pd.DataFrame([
-    {"데이터셋 (Dataset)": "훈련 데이터 (Train_70%)", "Precision": round(p_tr2, 4), "Recall": round(r_tr2, 4), "F1-Score": round(f_tr2, 4), "ROC-AUC": round(roc_tr2, 4), "PR-AUC": round(pr_tr2, 4), "LogLoss": round(log_tr2, 4)},
-    {"데이터셋 (Dataset)": "검증 데이터 (Valid_15%)", "Precision": round(p_va2, 4), "Recall": round(r_va2, 4), "F1-Score": round(f_va2, 4), "ROC-AUC": round(roc_va2, 4), "PR-AUC": round(pr_va2, 4), "LogLoss": round(log_va2, 4)},
-    {"데이터셋 (Dataset)": "실전 데이터 (Test_15%)", "Precision": round(p_te2, 4), "Recall": round(r_te2, 4), "F1-Score": round(f_te2, 4), "ROC-AUC": round(roc_te2, 4), "PR-AUC": round(pr_te2, 4), "LogLoss": round(log_te2, 4)}
-])
-display(feature_eng_perf_df)
-
-feature_names_eng = list(preprocessor_eng.get_feature_names_out())
-coef_df = pd.DataFrame({"Feature": feature_names_eng, "Coefficient": lr_model_post.coef_[0].round(4)})
-print("\n [피처 엔지니어링 반영 후] 로지스틱 회귀 변수 가중치 TOP 10")
-display(coef_df.sort_values(by="Coefficient", ascending=False).head(10))
 
 
 # ==============================================================================
