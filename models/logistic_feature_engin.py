@@ -386,3 +386,126 @@ cv_comparison_df = pd.DataFrame([
 
 print("\n[최종 검증] 하이퍼파라미터 고정 후 피처 엔지니어링 전/후 교차 검증 비교")
 display(cv_comparison_df)
+
+
+# ==============================================================================
+# [시각화]
+# ==============================================================================
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import learning_curve
+from sklearn.metrics import precision_recall_curve, confusion_matrix
+import os
+import numpy as np
+
+# 한글 깨짐 방지 및 마이너스 기호 깨짐 처리 
+plt.rcParams['font.family'] = 'Malgun Gothic'
+plt.rcParams['axes.unicode_minus'] = False
+
+# ==============================================================================
+# [데이터셋 최종 매칭 동기화 세팅]
+# ==============================================================================
+target_model = lr_model_post          # 2차 튜닝이 완료된 최종 l1, C=10.0 모델
+X_train_target = x_train_eng          # 1, 4번용 훈련 데이터
+y_train_target = y_train
+X_test_target = x_test_eng            # 2, 3번용 실전 테스트 데이터 (Test_15%)
+y_test_target = y_test                # 2, 3번용 실전 테스트 정답
+feature_names_target = feature_names_eng
+final_th = 0.5                        # 확정된 기본 임계값
+
+
+# ==============================================================================
+# 1. Learning_Curve
+# ==============================================================================
+train_sizes, train_scores, valid_scores = learning_curve(
+    estimator=target_model,
+    X=X_train_target,
+    y=y_train_target,
+    train_sizes=np.linspace(0.1, 1.0, 10),
+    cv=5,
+    scoring='average_precision',  
+    n_jobs=-1,
+    random_state=42
+)
+
+train_mean = np.mean(train_scores, axis=1)
+valid_mean = np.mean(valid_scores, axis=1)
+
+plt.figure(figsize=(8, 5))
+plt.plot(train_sizes, train_mean, 'o-', color='blue', label='Train PR-AUC')
+plt.plot(train_sizes, valid_mean, 'o-', color='green', label='Validation PR-AUC')
+# Best 모델 빨간 점선 표시
+plt.axvline(x=train_sizes[-1], color='red', linestyle='--', linewidth=1.5, label='Best Model Point')
+
+plt.title('로지스틱 회귀 Learning Curve (PR-AUC)', fontsize=14, fontweight='bold')
+plt.xlabel('훈련 데이터 크기 (Training Samples)', fontsize=11)
+plt.ylabel('PR-AUC Score', fontsize=11)
+plt.grid(True, linestyle=':', alpha=0.6)
+plt.legend(loc='best')
+plt.tight_layout()
+plt.show()
+
+
+# ==============================================================================
+# 2. Precision-Recall_Curve
+# ==============================================================================
+y_proba_test = target_model.predict_proba(X_test_target)[:, 1]
+precisions, recalls, thresholds = precision_recall_curve(y_test_target, y_proba_test)
+
+plt.figure(figsize=(7, 5))
+plt.plot(recalls, precisions, color='purple', linewidth=2, label='PR Curve (Test)')
+
+plt.title('로지스틱 회귀 Precision-Recall Curve (Test)', fontsize=14, fontweight='bold')
+plt.xlabel('Recall (재현율)', fontsize=11)
+plt.ylabel('Precision (정밀도)', fontsize=11)
+plt.grid(True, linestyle=':', alpha=0.6)
+plt.legend(loc='lower left')
+plt.tight_layout()
+plt.show()
+
+
+# ==============================================================================
+# 3. Confusion_Matrix
+# ==============================================================================
+y_pred_test_custom = (y_proba_test >= final_th).astype(int)
+cm = confusion_matrix(y_test_target, y_pred_test_custom)
+
+plt.figure(figsize=(6, 5))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar=False,
+            xticklabels=['Stay (잔류)', 'Leave (퇴사)'],
+            yticklabels=['Stay (잔류)', 'Leave (퇴사)'],
+            annot_kws={'size': 14, 'weight': 'bold'})
+
+plt.title(f'로지스틱 회귀 Confusion Matrix (Test | Th: {final_th})', fontsize=14, fontweight='bold')
+plt.xlabel('Predicted Label (예측값)', fontsize=12)
+plt.ylabel('True Label (실제값)', fontsize=12)
+plt.tight_layout()
+plt.show()
+
+
+# ==============================================================================
+# 4. Feature_Importance
+# ==============================================================================
+coef_values = target_model.coef_[0]
+importance_df = pd.DataFrame({
+    'Feature': feature_names_target,
+    'Importance': np.abs(coef_values),  # 영향력의 순수한 크기 대조를 위해 절대값 변환
+    'Original_Coef': coef_values        # 부호(+/-) 식별용 원본 값 보존
+})
+
+# 상위 20개 핵심 인사 변수 정렬
+importance_df = importance_df.sort_values(by='Importance', ascending=False).head(20)
+
+plt.figure(figsize=(10, 8))
+sns.barplot(x='Importance', y='Feature', data=importance_df, palette='viridis', hue='Feature', legend=False)
+
+# 바 차트 우측에 텍스트로 양수/음수 방향성이 포함된 가중치 값 명시
+for index, row in enumerate(importance_df.itertuples()):
+    plt.text(row.Importance + 0.02, index, f" {row.Original_Coef:+.4f}", va='center', fontsize=10, fontweight='bold')
+
+plt.title('로지스틱 회귀 변수 중요도 (Coefficient Absolute Value - Top 20)', fontsize=14, fontweight='bold')
+plt.xlabel('영향력 크기 (Absolute Coefficient)', fontsize=12)
+plt.ylabel('인사 요인 변수 (Features)', fontsize=12)
+plt.grid(True, linestyle=':', alpha=0.4, axis='x')
+plt.tight_layout()
+plt.show()
