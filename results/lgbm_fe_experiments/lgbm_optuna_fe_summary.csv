@@ -1,3 +1,0 @@
-﻿Model,Feature Set,Search Method,Dataset,CV Best PR-AUC,Threshold,Precision,Recall,F1,ROC-AUC,PR-AUC,LogLoss,TN,FP,FN,TP
-LightGBM,FE,Optuna,Validation,0.611,0.4496,0.4074,0.6286,0.4944,0.747,0.3679,0.4605,153,32,13,22
-LightGBM,FE,Optuna,Test,0.611,0.4496,0.3051,0.5,0.3789,0.7538,0.4632,0.4638,144,41,18,18

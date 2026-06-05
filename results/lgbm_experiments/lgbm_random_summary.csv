@@ -1,0 +1,3 @@
+﻿Dataset,Model,Search Method,Selection Metric,Threshold,Precision,Recall,F1-Score,ROC-AUC,PR-AUC,LogLoss
+Validation,LightGBM,RandomizedSearchCV,PR-AUC,0.2773,0.3651,0.6571,0.4694,0.7401,0.3858,0.4351
+Test,LightGBM,RandomizedSearchCV,PR-AUC,0.2773,0.377,0.6389,0.4742,0.7989,0.541,0.3813

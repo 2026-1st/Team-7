@@ -5,11 +5,11 @@
     "n_estimators": 100,
     "min_child_samples": 10,
     "verbose": -1,
-    "subsample": 0.7,
-    "reg_lambda": 5,
-    "reg_alpha": 0,
-    "num_leaves": 7,
-    "max_depth": 7,
+    "subsample": 0.9,
+    "reg_lambda": 1,
+    "reg_alpha": 5,
+    "num_leaves": 15,
+    "max_depth": -1,
     "learning_rate": 0.2,
-    "colsample_bytree": 0.7
+    "colsample_bytree": 0.9
 }

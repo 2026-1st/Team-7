@@ -1,3 +1,0 @@
-﻿Model,Feature Set,Search Method,Dataset,CV Best PR-AUC,Threshold,Precision,Recall,F1,ROC-AUC,PR-AUC,LogLoss,TN,FP,FN,TP
-LightGBM,FE,GridSearchCV,Validation,0.6143,0.4425,0.439,0.5143,0.4737,0.7597,0.3806,0.4239,162,23,17,18
-LightGBM,FE,GridSearchCV,Test,0.6143,0.4425,0.3617,0.4722,0.4096,0.761,0.5014,0.4261,155,30,19,17
