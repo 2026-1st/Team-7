@@ -208,8 +208,6 @@ display(coef_df_pre.sort_values(by="Coefficient", ascending=False).head(10))
 print("\n[최적 조합의 검증 데이터 결과]")
 display(pd.DataFrame(valid_results))
 
-print("\n[각 최적 조합별 검증 결과]")
-display(pd.DataFrame(valid_results))
 
 
 # ==============================================================================
