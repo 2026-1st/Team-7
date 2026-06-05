@@ -172,39 +172,40 @@ report_df = pd.DataFrame({
     'PR-AUC': cv_results['mean_test_pr_auc'].round(4), 'LogLoss': (cv_results['mean_test_logloss'] * -1).round(4)
 })
 
-for metric, asc in [('Precision', False), ('Recall', False), ('F1-Score', False), ('ROC-AUC', False), ('PR-AUC', False), ('LogLoss', True)]:
-    print(f"\n {metric} {'낮은' if asc else '높은'} 순 TOP 5")
-    display(report_df.sort_values(by=metric, ascending=asc).head(5))
+print("\n [순정 데이터] PR-AUC 높은 순 TOP 5")
+display(report_df.sort_values(by='PR-AUC', ascending=False).head(5))
 
 # 지표별 1등 조합 복원학습 (ROC-AUC와 PR-AUC 중복으로 총 5개)
-top_combinations = [
-    {"name": "Model_Precision_Top (Index 34)", "class_weight": None, "n_estimators": 100, "max_depth": 10, "min_samples_split": 10},
-    {"name": "Model_Recall_Top (Index 68)", "class_weight": "balanced", "n_estimators": 10, "max_depth": 5, "min_samples_split": 10},
-    {"name": "Model_F1_Top (Index 70)", "class_weight": "balanced", "n_estimators": 100, "max_depth": 5, "min_samples_split": 10},
-    {"name": "Model_ROCAUC_PRAUC_Top (Index 31)", "class_weight": None, "n_estimators": 300, "max_depth": 10, "min_samples_split": 5},
-    {"name": "Model_LogLoss_Top (Index 3)", "class_weight": None, "n_estimators": 300, "max_depth": None, "min_samples_split": 2}
-]
+best_comb_pre = {"class_weight": None, "n_estimators": 300, "max_depth": 10, "min_samples_split": 5}
+
+
+final_rf_master_pre = RandomForestClassifier(
+    n_estimators=best_comb_pre["n_estimators"], 
+    max_depth=best_comb_pre["max_depth"], 
+    min_samples_split=best_comb_pre["min_samples_split"], 
+    class_weight=best_comb_pre["class_weight"], 
+    random_state=42, 
+    n_jobs=-1
+)
+final_rf_master_pre.fit(x_train_pre, y_train)
+
+y_pred_val = final_rf_master_pre.predict(x_valid_pre)
+y_proba_val = final_rf_master_pre.predict_proba(x_valid_pre)[:, 1]
+precision, recall, f1, roc_auc, pr_auc, logloss = evaluate_model(y_valid, y_pred_val, y_proba_val)
+
+valid_results = [{
+    "Model": "RF_PR_AUC_Top_Model", "Precision": round(precision, 4), "Recall": round(recall, 4),
+    "F1-Score": round(f1, 4), "ROC-AUC": round(roc_auc, 4), "PR-AUC": round(pr_auc, 4), "LogLoss": round(logloss, 4)
+}]
 
 feature_names_pre = list(preprocessor_pre.get_feature_names_out())
-importance_comparison_df = pd.DataFrame({"Feature": feature_names_pre})
-valid_results = []
+importance_df_pre = pd.DataFrame({
+    "Feature": feature_names_pre, 
+    "Importance": final_rf_master_pre.feature_importances_.round(4)
+})
 
-for comb in top_combinations:
-    model = RandomForestClassifier(n_estimators=comb["n_estimators"], max_depth=comb["max_depth"], min_samples_split=comb["min_samples_split"], class_weight=comb["class_weight"], random_state=42, n_jobs=-1)
-    model.fit(x_train_pre, y_train)
-    y_pred_val = model.predict(x_valid_pre)
-    y_proba_val = model.predict_proba(x_valid_pre)[:, 1]
-    precision, recall, f1, roc_auc, pr_auc, logloss = evaluate_model(y_valid, y_pred_val, y_proba_val)
-    
-    valid_results.append({
-        "Model": comb["name"].split(" ")[0], "Precision": round(precision, 4), "Recall": round(recall, 4),
-        "F1-Score": round(f1, 4), "ROC-AUC": round(roc_auc, 4), "PR-AUC": round(pr_auc, 4), "LogLoss": round(logloss, 4)
-    })
-    importance_comparison_df[comb["name"]] = model.feature_importances_.round(4)
-
-for comb in top_combinations:
-    print(f"\n[{comb['name'].split(' ')[0]}] 기준 변수 정렬")
-    display(importance_comparison_df[['Feature', comb["name"]]].sort_values(by=comb["name"], ascending=False).head(10))
+print("\n [PR_AUC_Top_Model] 기준 원본 데이터 변수 중요도 TOP 10")
+display(importance_df_pre.sort_values(by="Importance", ascending=False).head(10))
 
 print("\n[각 최적 조합별 검증 결과]")
 display(pd.DataFrame(valid_results))

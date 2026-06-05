@@ -171,39 +171,42 @@ report_df = pd.DataFrame({
     'PR-AUC': cv_results['mean_test_pr_auc'].round(4), 'LogLoss': (cv_results['mean_test_logloss'] * -1).round(4)
 })
 
-for metric, asc in [('Precision', False), ('Recall', False), ('F1-Score', False), ('ROC-AUC', False), ('PR-AUC', False), ('LogLoss', True)]:
-    print(f"\n {metric} {'낮은' if asc else '높은'} 순 TOP 5")
-    display(report_df.sort_values(by=metric, ascending=asc).head(5))
+print("\n [순정 데이터] PR-AUC 높은 순 TOP 5 조합")
+display(report_df.sort_values(by='PR-AUC', ascending=False).head(5))
 
-top_combinations = [
-    {"name": "Model_Precision_Top (Index 1)", "class_weight": None, "penalty": "l1", "solver": "saga", "C": 0.1},
-    {"name": "Model_Recall_Top (Index 4)", "class_weight": "balanced", "penalty": "l1", "solver": "liblinear", "C": 0.1},
-    {"name": "Model_F1_Top (Index 18)", "class_weight": None, "penalty": "l2", "solver": "liblinear", "C": 10.0},
-    {"name": "Model_ROCAUC_Top (Index 27)", "class_weight": None, "penalty": "l2", "solver": "saga", "C": 100.0},
-    {"name": "Model_PRAUC_Top (Index 34)", "class_weight": None, "penalty": "l2", "solver": "lbfgs", "C": 1.0},
-    {"name": "Model_LogLoss_Top (Index 11)", "class_weight": None, "penalty": "l2", "solver": "saga", "C": 1.0}
-]
+best_comb_pre = {"class_weight": None, "penalty": "l2", "solver": "lbfgs", "C": 1.0}
+
+final_master_model_pre = LogisticRegression(
+    penalty=best_comb_pre["penalty"], 
+    C=best_comb_pre["C"], 
+    class_weight=best_comb_pre["class_weight"], 
+    solver=best_comb_pre["solver"], 
+    max_iter=3000, 
+    random_state=42
+)
+final_master_model_pre.fit(x_train_pre, y_train)
+
+# 검증 데이터 셋 채점
+y_pred_val = final_master_model_pre.predict(x_valid_pre)
+y_proba_val = final_master_model_pre.predict_proba(x_valid_pre)[:, 1]
+precision, recall, f1, roc_auc, pr_auc, logloss = evaluate_model(y_valid, y_pred_val, y_proba_val)
+
+valid_results = [{
+    "Model": "LR_PR_AUC_Top_Model", "Precision": round(precision, 4), "Recall": round(recall, 4),
+    "F1-Score": round(f1, 4), "ROC-AUC": round(roc_auc, 4), "PR-AUC": round(pr_auc, 4), "LogLoss": round(logloss, 4)
+}]
 
 feature_names_pre = list(preprocessor_pre.get_feature_names_out())
-coef_comparison_df = pd.DataFrame({"Feature": feature_names_pre})
-valid_results = []
+coef_df_pre = pd.DataFrame({
+    "Feature": feature_names_pre, 
+    "Coefficient": final_master_model_pre.coef_[0].round(4)
+})
 
-for comb in top_combinations:
-    model = LogisticRegression(penalty=comb["penalty"], C=comb["C"], class_weight=comb["class_weight"], solver=comb["solver"], max_iter=3000, random_state=42)
-    model.fit(x_train_pre, y_train)
-    y_pred_val = model.predict(x_valid_pre)
-    y_proba_val = model.predict_proba(x_valid_pre)[:, 1]
-    precision, recall, f1, roc_auc, pr_auc, logloss = evaluate_model(y_valid, y_pred_val, y_proba_val)
-    
-    valid_results.append({
-        "Model": comb["name"].split(" ")[0], "Precision": round(precision, 4), "Recall": round(recall, 4),
-        "F1-Score": round(f1, 4), "ROC-AUC": round(roc_auc, 4), "PR-AUC": round(pr_auc, 4), "LogLoss": round(logloss, 4)
-    })
-    coef_comparison_df[comb["name"]] = model.coef_[0].round(4)
+print("\n 기준 원본 데이터 변수 영향력(Coefficient) TOP 10")
+display(coef_df_pre.sort_values(by="Coefficient", ascending=False).head(10))
 
-for comb in top_combinations:
-    print(f"\n[{comb['name'].split(' ')[0]}] 기준 변수 정렬")
-    display(coef_comparison_df[['Feature', comb["name"]]].sort_values(by=comb["name"], ascending=False).head(10))
+print("\n[최적 조합의 검증 데이터 결과]")
+display(pd.DataFrame(valid_results))
 
 print("\n[각 최적 조합별 검증 결과]")
 display(pd.DataFrame(valid_results))
