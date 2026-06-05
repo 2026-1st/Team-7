@@ -120,7 +120,7 @@ def evaluate_model(y_test, y_pred, y_proba):
 
 
 # ==============================================================================
-# 1단계: 그리드 서치 및 지표별 최적 중요도 비교 (피처 엔지니어링 전 원본 데이터 기준)
+# 그리드 서치 및 지표별 최적 중요도 비교 (피처 엔지니어링 전 원본 데이터 기준)
 # ==============================================================================
 print("\n" + "="*35 + " [그리드 서치 및 지표별 최적 모델 탐색] " + "="*35)
 from sklearn.ensemble import RandomForestClassifier
@@ -172,73 +172,54 @@ report_df = pd.DataFrame({
     'PR-AUC': cv_results['mean_test_pr_auc'].round(4), 'LogLoss': (cv_results['mean_test_logloss'] * -1).round(4)
 })
 
-for metric, asc in [('Precision', False), ('Recall', False), ('F1-Score', False), ('ROC-AUC', False), ('PR-AUC', False), ('LogLoss', True)]:
-    print(f"\n {metric} {'낮은' if asc else '높은'} 순 TOP 5")
-    display(report_df.sort_values(by=metric, ascending=asc).head(5))
+print("\n [순정 데이터] PR-AUC 높은 순 TOP 5")
+display(report_df.sort_values(by='PR-AUC', ascending=False).head(5))
 
 # 지표별 1등 조합 복원학습 (ROC-AUC와 PR-AUC 중복으로 총 5개)
-top_combinations = [
-    {"name": "Model_Precision_Top (Index 34)", "class_weight": None, "n_estimators": 100, "max_depth": 10, "min_samples_split": 10},
-    {"name": "Model_Recall_Top (Index 68)", "class_weight": "balanced", "n_estimators": 10, "max_depth": 5, "min_samples_split": 10},
-    {"name": "Model_F1_Top (Index 70)", "class_weight": "balanced", "n_estimators": 100, "max_depth": 5, "min_samples_split": 10},
-    {"name": "Model_ROCAUC_PRAUC_Top (Index 31)", "class_weight": None, "n_estimators": 300, "max_depth": 10, "min_samples_split": 5},
-    {"name": "Model_LogLoss_Top (Index 3)", "class_weight": None, "n_estimators": 300, "max_depth": None, "min_samples_split": 2}
-]
+best_comb_pre = {"class_weight": None, "n_estimators": 300, "max_depth": 10, "min_samples_split": 5}
+
+
+final_rf_master_pre = RandomForestClassifier(
+    n_estimators=best_comb_pre["n_estimators"], 
+    max_depth=best_comb_pre["max_depth"], 
+    min_samples_split=best_comb_pre["min_samples_split"], 
+    class_weight=best_comb_pre["class_weight"], 
+    random_state=42, 
+    n_jobs=-1
+)
+final_rf_master_pre.fit(x_train_pre, y_train)
+
+y_pred_val = final_rf_master_pre.predict(x_valid_pre)
+y_proba_val = final_rf_master_pre.predict_proba(x_valid_pre)[:, 1]
+precision, recall, f1, roc_auc, pr_auc, logloss = evaluate_model(y_valid, y_pred_val, y_proba_val)
+
+valid_results = [{
+    "Model": "RF_PR_AUC_Top_Model", "Precision": round(precision, 4), "Recall": round(recall, 4),
+    "F1-Score": round(f1, 4), "ROC-AUC": round(roc_auc, 4), "PR-AUC": round(pr_auc, 4), "LogLoss": round(logloss, 4)
+}]
 
 feature_names_pre = list(preprocessor_pre.get_feature_names_out())
-importance_comparison_df = pd.DataFrame({"Feature": feature_names_pre})
-valid_results = []
+importance_df_pre = pd.DataFrame({
+    "Feature": feature_names_pre, 
+    "Importance": final_rf_master_pre.feature_importances_.round(4)
+})
 
-for comb in top_combinations:
-    model = RandomForestClassifier(n_estimators=comb["n_estimators"], max_depth=comb["max_depth"], min_samples_split=comb["min_samples_split"], class_weight=comb["class_weight"], random_state=42, n_jobs=-1)
-    model.fit(x_train_pre, y_train)
-    y_pred_val = model.predict(x_valid_pre)
-    y_proba_val = model.predict_proba(x_valid_pre)[:, 1]
-    precision, recall, f1, roc_auc, pr_auc, logloss = evaluate_model(y_valid, y_pred_val, y_proba_val)
-    
-    valid_results.append({
-        "Model": comb["name"].split(" ")[0], "Precision": round(precision, 4), "Recall": round(recall, 4),
-        "F1-Score": round(f1, 4), "ROC-AUC": round(roc_auc, 4), "PR-AUC": round(pr_auc, 4), "LogLoss": round(logloss, 4)
-    })
-    importance_comparison_df[comb["name"]] = model.feature_importances_.round(4)
-
-for comb in top_combinations:
-    print(f"\n[{comb['name'].split(' ')[0]}] 기준 변수 정렬")
-    display(importance_comparison_df[['Feature', comb["name"]]].sort_values(by=comb["name"], ascending=False).head(10))
+print("\n [PR_AUC_Top_Model] 기준 원본 데이터 변수 중요도 TOP 10")
+display(importance_df_pre.sort_values(by="Importance", ascending=False).head(10))
 
 print("\n[각 최적 조합별 검증 결과]")
 display(pd.DataFrame(valid_results))
 
 
-# ==========================================
-# 2단계: PR-AUC 1등 모델 기준 Threshold 튜닝
-# ==========================================
-print("\n" + "="*40 + " [PR-AUC 1등 모델 기준 Threshold 튜닝] " + "="*40)
-best_rf_model = RandomForestClassifier(n_estimators=300, max_depth=4, min_samples_split=10, class_weight=None, random_state=42, n_jobs=-1)
-best_rf_model.fit(x_train_pre, y_train)
-y_proba_rf_valid = best_rf_model.predict_proba(x_valid_pre)[:, 1]
-
-thresholds = np.arange(0.1, 0.95, 0.05)
-rf_threshold_tuning_results = []
-
-for th in thresholds:
-    y_pred_rf_custom = (y_proba_rf_valid >= th).astype(int)
-    precision, recall, f1, roc_auc, pr_auc, logloss = evaluate_model(y_valid, y_pred_rf_custom, y_proba_rf_valid)
-    rf_threshold_tuning_results.append({
-        "Threshold": round(th, 2), "Precision": round(precision, 4), "Recall": round(recall, 4),
-        "F1-Score": round(f1, 4), "ROC-AUC": round(roc_auc, 4), "PR-AUC": round(pr_auc, 4), "LogLoss": round(logloss, 4)
-    })
-display(pd.DataFrame(rf_threshold_tuning_results))
-
 
 # ==============================================================================
-# 3단계: [최종 모델 성능] 데이터 분할별 랜덤 포레스트 분류 성능 비교
+# [최종 모델 성능] 데이터 분할별 랜덤 포레스트 분류 성능 비교
 # ==============================================================================
 print("\n" + "="*40 + " [최종 모델 성능] 데이터 분할별 랜덤 포레스트 분류 성능 비교 " + "="*40)
 final_rf_master = RandomForestClassifier(n_estimators=300, max_depth=4, min_samples_split=10, class_weight=None, random_state=42, n_jobs=-1)
 final_rf_master.fit(x_train_pre, y_train)
 
-final_rf_th = 0.25
+final_rf_th = 0.5
 
 p_tr1, r_tr1, f_tr1, roc_tr1, pr_tr1, log_tr1 = evaluate_model(y_train, (final_rf_master.predict_proba(x_train_pre)[:, 1] >= final_rf_th).astype(int), final_rf_master.predict_proba(x_train_pre)[:, 1])
 p_va1, r_va1, f_va1, roc_va1, pr_va1, log_va1 = evaluate_model(y_valid, (final_rf_master.predict_proba(x_valid_pre)[:, 1] >= final_rf_th).astype(int), final_rf_master.predict_proba(x_valid_pre)[:, 1])
@@ -259,7 +240,7 @@ display(final_rf_importances_pre)
 
 
 # ==============================================================================
-# 4단계: [피처 엔지니어링 반영 후] 랜덤 포레스트 성능 비교
+# [피처 엔지니어링 반영 후] 랜덤 포레스트 성능 비교
 # ==============================================================================
 print("\n" + "="*40 + " [피처 엔지니어링 반영 후] 랜덤 포레스트 성능 " + "="*40)
 rf_model_post = RandomForestClassifier(n_estimators=300, max_depth=4, min_samples_split=10, class_weight=None, random_state=42, n_jobs=-1)
@@ -281,3 +262,234 @@ feature_names_eng = list(preprocessor_eng.get_feature_names_out())
 coef_df = pd.DataFrame({"Feature": feature_names_eng, "Importance": rf_model_post.feature_importances_.round(4)})
 print("\n [피처 엔지니어링 반영 후] 랜덤 포레스트 변수 중요도 TOP 10")
 display(coef_df.sort_values(by="Importance", ascending=False).head(10).reset_index(drop=True))
+
+
+# ==============================================================================
+# [피처 엔지니어링 반영 후] 하이퍼 파라미터 2차 그리드 서치 재구동
+# ==============================================================================
+print("\n" + "="*30 + " [피처 엔지니어링 반영 후] 랜덤 포레스트 2차 그리드 서치 시작 " + "="*30)
+
+# 파생 변수가 추가된 데이터로 튜닝 시작
+grid_search_rf_post = GridSearchCV(
+    estimator=RandomForestClassifier(random_state=42, n_jobs=-1),
+    param_grid=param_grid, # 상단에 정의된 n_estimators, max_depth 등 그대로 활용
+    scoring=scoring_metrics,
+    refit=False,
+    cv=5,
+    n_jobs=-1
+)
+grid_search_rf_post.fit(x_train_eng, y_train)
+
+# 결과 수집 및 리포트 테이블 구축
+cv_results_rf_post = pd.DataFrame(grid_search_rf_post.cv_results_)
+report_rf_post_df = pd.DataFrame({
+    'Class_Weight': cv_results_rf_post['param_class_weight'], 'N_Estimators': cv_results_rf_post['param_n_estimators'],
+    'Max_Depth': cv_results_rf_post['param_max_depth'], 'Min_Samples_Split': cv_results_rf_post['param_min_samples_split'],
+    'Precision': cv_results_rf_post['mean_test_precision'].round(4), 'Recall': cv_results_rf_post['mean_test_recall'].round(4),
+    'F1-Score': cv_results_rf_post['mean_test_f1'].round(4), 'ROC-AUC': cv_results_rf_post['mean_test_roc_auc'].round(4),
+    'PR-AUC': cv_results_rf_post['mean_test_pr_auc'].round(4), 'LogLoss': (cv_results_rf_post['mean_test_logloss'] * -1).round(4), 
+    'LogLoss': (cv_results_rf_post['mean_test_logloss'] * -1).round(4)
+})
+
+print("\n [파생 변수 반영 후] PR-AUC 높은 순 TOP 5 조합 (새로운 최적 파라미터 후보)")
+display(report_rf_post_df.sort_values(by='PR-AUC', ascending=False).head(5))
+
+
+# 새로운 1등 조합의 하이퍼파라미터 수치로 최종 모델 재학습 및 성능 산출
+best_class_weight_rf = None
+best_n_estimators_rf = 300
+best_max_depth_rf = None
+best_min_samples_split_rf = 2
+
+rf_model_post = RandomForestClassifier(
+    n_estimators=best_n_estimators_rf,
+    max_depth=best_max_depth_rf,
+    min_samples_split=best_min_samples_split_rf,
+    class_weight=best_class_weight_rf,
+    random_state=42,
+    n_jobs=-1
+)
+rf_model_post.fit(x_train_eng, y_train)
+
+# 2차 튜닝 마스터 모델 최종 스코어 산출
+p_tr3, r_tr3, f_tr3, roc_tr3, pr_tr3, log_tr3 = evaluate_model(y_train, (rf_model_post.predict_proba(x_train_eng)[:, 1] >= final_rf_th).astype(int), rf_model_post.predict_proba(x_train_eng)[:, 1])
+p_va3, r_va3, f_va3, roc_va3, pr_va3, log_va3 = evaluate_model(y_valid, (rf_model_post.predict_proba(x_valid_eng)[:, 1] >= final_rf_th).astype(int), rf_model_post.predict_proba(x_valid_eng)[:, 1])
+p_te3, r_te3, f_te3, roc_te3, pr_te3, log_te3 = evaluate_model(y_test, (rf_model_post.predict_proba(x_test_eng)[:, 1] >= final_rf_th).astype(int), rf_model_post.predict_proba(x_test_eng)[:, 1])
+
+feature_eng_perf_df_tuned = pd.DataFrame([
+    {"데이터셋 (Dataset)": "훈련 데이터 (Train_70%)", "Precision": round(p_tr3, 4), "Recall": round(r_tr3, 4), "F1-Score": round(f_tr3, 4), "ROC-AUC": round(roc_tr3, 4), "PR-AUC": round(pr_tr3, 4), "LogLoss": round(log_tr3, 4)},
+    {"데이터셋 (Dataset)": "검증 데이터 (Valid_15%)", "Precision": round(p_va3, 4), "Recall": round(r_va3, 4), "F1-Score": round(f_va3, 4), "ROC-AUC": round(roc_va3, 4), "PR-AUC": round(pr_va3, 4), "LogLoss": round(log_va3, 4)},
+    {"데이터셋 (Dataset)": "실전 데이터 (Test_15%)", "Precision": round(p_te3, 4), "Recall": round(r_te3, 4), "F1-Score": round(f_te3, 4), "ROC-AUC": round(roc_te3, 4), "PR-AUC": round(pr_te3, 4), "LogLoss": round(log_te3, 4)}
+])
+print("\n[피처 엔지니어링 및 2차 튜닝 반영 후] 랜덤 포레스트 최종 성능")
+display(feature_eng_perf_df_tuned)
+
+feature_names_eng = list(preprocessor_eng.get_feature_names_out())
+coef_df_tuned = pd.DataFrame({"Feature": feature_names_eng, "Importance": rf_model_post.feature_importances_.round(4)})
+print("\n [피처 엔지니어링 및 2차 튜닝 반영 후] 랜덤 포레스트 변수 중요도 TOP 10")
+display(coef_df_tuned.sort_values(by="Importance", ascending=False).head(10).reset_index(drop=True))
+
+
+# ==============================================================================
+# [교차 검증] 5-Fold Cross Validation을 통한 일반화 성능 최종 검증
+# ==============================================================================
+print("\n" + "="*35 + " [최종 모델 5-Fold 교차 검증 안정성 평가] " + "="*35)
+from sklearn.model_selection import cross_validate, StratifiedKFold
+
+cv_strategy = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+cv_scoring = {
+    'precision': 'precision', 'recall': 'recall', 'f1': 'f1', 
+    'roc_auc': 'roc_auc', 'pr_auc': 'average_precision', 'logloss': 'neg_log_loss'
+}
+
+# 1) 피처 엔지니어링 [전] 최종 마스터 모델 규격
+final_cv_model_pre = RandomForestClassifier(n_estimators=300, max_depth=4, min_samples_split=10, class_weight=None, random_state=42, n_jobs=-1)
+cv_results_pre = cross_validate(final_cv_model_pre, x_train_pre, y_train, cv=cv_strategy, scoring=cv_scoring, n_jobs=-1)
+
+# 2) 피처 엔지니어링 [후] 2차 최적화가 완비된 파생 변수 최종 1등 모델
+cv_results_post = cross_validate(rf_model_post, x_train_eng, y_train, cv=cv_strategy, scoring=cv_scoring, n_jobs=-1)
+
+# 데이터프레임으로 최종 교차 검증 대조군 출력
+cv_comparison_df = pd.DataFrame([
+    {
+        "최종 모델 검증 트랙 (5-Fold CV Avg)": "피처 엔지니어링 [전] 최종 모델",
+        "Precision": round(np.mean(cv_results_pre['test_precision']), 4),
+        "Recall": round(np.mean(cv_results_pre['test_recall']), 4),
+        "F1-Score": round(np.mean(cv_results_pre['test_f1']), 4),
+        "ROC-AUC": round(np.mean(cv_results_pre['test_roc_auc']), 4),
+        "PR-AUC": round(np.mean(cv_results_pre['test_pr_auc']), 4),
+        "LogLoss": round(-1 * np.mean(cv_results_pre['test_logloss']), 4)
+    },
+    {
+        "최종 모델 검증 트랙 (5-Fold CV Avg)": "피처 엔지니어링 [후] 최종 모델",
+        "Precision": round(np.mean(cv_results_post['test_precision']), 4),
+        "Recall": round(np.mean(cv_results_post['test_recall']), 4),
+        "F1-Score": round(np.mean(cv_results_post['test_f1']), 4),
+        "ROC-AUC": round(np.mean(cv_results_post['test_roc_auc']), 4),
+        "PR-AUC": round(np.mean(cv_results_post['test_pr_auc']), 4),
+        "LogLoss": round(-1 * np.mean(cv_results_post['test_logloss']), 4)
+    }
+])
+
+print("\n[최종 검증] 각 단계별 최적 하이퍼파라미터 적용 후 교차 검증 비교 (LogLoss 포함)")
+display(cv_comparison_df)
+
+
+# ==============================================================================
+# [시각화]
+# ==============================================================================
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import learning_curve
+from sklearn.metrics import precision_recall_curve, confusion_matrix
+import numpy as np
+
+# 한글 깨짐 방지 및 마이너스 기호 깨짐 처리
+plt.rcParams['font.family'] = 'Malgun Gothic' 
+plt.rcParams['axes.unicode_minus'] = False
+
+# ==============================================================================
+# [데이터셋 최종 매칭, 모델 동기화]
+# ==============================================================================
+target_model = rf_model_post          # 2차 튜닝 완료된 최종 트리
+X_train_target = x_train_eng          # 1, 4번용 훈련 데이터
+y_train_target = y_train
+X_test_target = x_test_eng            # 2, 3번용 실전 테스트 데이터 (Test_15%)
+y_test_target = y_test                # 2, 3번용 실전 테스트 정답
+feature_names_target = feature_names_eng
+final_rf_th = 0.5                     # 확정된 기본 임계값
+
+
+# ==============================================================================
+# 1. Learning_Curve
+# ==============================================================================
+train_sizes, train_scores, valid_scores = learning_curve(
+    estimator=target_model,
+    X=X_train_target,
+    y=y_train_target,
+    train_sizes=np.linspace(0.1, 1.0, 10),
+    cv=5,
+    scoring='average_precision',  
+    n_jobs=-1,
+    random_state=42
+)
+
+train_mean = np.mean(train_scores, axis=1)
+valid_mean = np.mean(valid_scores, axis=1)
+
+plt.figure(figsize=(8, 5))
+plt.plot(train_sizes, train_mean, 'o-', color='blue', label='Train PR-AUC')
+plt.plot(train_sizes, valid_mean, 'o-', color='green', label='Validation PR-AUC')
+
+plt.axvline(x=train_sizes[-1], color='red', linestyle='--', linewidth=1.5, label='Best Model Point')
+plt.title('랜덤 포레스트 Learning Curve (PR-AUC)', fontsize=14, fontweight='bold')
+plt.xlabel('훈련 데이터 크기 (Training Samples)', fontsize=11)
+plt.ylabel('PR-AUC Score', fontsize=11)
+plt.grid(True, linestyle=':', alpha=0.6)
+plt.legend(loc='best')
+plt.tight_layout()
+plt.show() 
+
+
+# ==============================================================================
+# 2. Precision-Recall_Curve
+# ==============================================================================
+y_proba_test = target_model.predict_proba(X_test_target)[:, 1]
+precisions, recalls, thresholds = precision_recall_curve(y_test_target, y_proba_test)
+
+plt.figure(figsize=(7, 5))
+plt.plot(recalls, precisions, color='purple', linewidth=2, label='PR Curve (Test)')
+
+plt.title('랜덤 포레스트 Precision-Recall Curve (Test)', fontsize=14, fontweight='bold')
+plt.xlabel('Recall (재현율)', fontsize=11)
+plt.ylabel('Precision (정밀도)', fontsize=11)
+plt.grid(True, linestyle=':', alpha=0.6)
+plt.legend(loc='lower left')
+plt.tight_layout()
+plt.show() 
+
+
+# ==============================================================================
+# 3. Confusion_Matrix 
+# ==============================================================================
+y_pred_test_custom = (y_proba_test >= final_rf_th).astype(int)
+cm = confusion_matrix(y_test_target, y_pred_test_custom)
+
+plt.figure(figsize=(6, 5))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Greens', cbar=False,  # 선형 모델과 차별화를 위해 Greens 톤 적용
+            xticklabels=['Stay (잔류)', 'Leave (퇴사)'],
+            yticklabels=['Stay (잔류)', 'Leave (퇴사)'],
+            annot_kws={'size': 14, 'weight': 'bold'})
+
+plt.title(f'랜덤 포레스트 Confusion Matrix (Test | Th: {final_rf_th})', fontsize=14, fontweight='bold')
+plt.xlabel('Predicted Label (예측값)', fontsize=12)
+plt.ylabel('True Label (실제값)', fontsize=12)
+plt.tight_layout()
+plt.show()  
+
+
+# ==============================================================================
+# 4. Feature_Importance 
+# ==============================================================================
+importances = target_model.feature_importances_
+importance_df = pd.DataFrame({
+    'Feature': feature_names_target,
+    'Importance': importances
+})
+
+# 상위 20개 핵심 인사 변수 정렬
+importance_df = importance_df.sort_values(by='Importance', ascending=False).head(20)
+
+plt.figure(figsize=(10, 8))
+sns.barplot(x='Importance', y='Feature', data=importance_df, palette='viridis', hue='Feature', legend=False)
+
+# 바 차트 우측에 수치 값 깔끔하게 명시 (트리 중요도는 늘 양수이므로 부호 생략)
+for index, row in enumerate(importance_df.itertuples()):
+    plt.text(row.Importance + 0.001, index, f" {row.Importance:.4f}", va='center', fontsize=10, fontweight='bold')
+
+plt.title('랜덤 포레스트 변수 중요도 (Feature Importance - Top 20)', fontsize=14, fontweight='bold')
+plt.xlabel('변수 중요도 (Gini Importance)', fontsize=12)
+plt.ylabel('인사 요인 변수 (Features)', fontsize=12)
+plt.grid(True, linestyle=':', alpha=0.4, axis='x')
+plt.tight_layout()
+plt.show()
