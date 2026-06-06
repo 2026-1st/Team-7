@@ -1,0 +1,7 @@
+﻿Model,Feature Set,Attempt,Search Method,Dataset,CV Best PR-AUC,Threshold,Precision,Recall,F1,ROC-AUC,PR-AUC,LogLoss,TN,FP,FN,TP
+LightGBM,FE,grid_search_fe,GridSearchCV,Validation,0.6121,0.139,0.3958,0.5429,0.4578,0.7489,0.3938,0.4862,156,29,16,19
+LightGBM,FE,grid_search_fe,GridSearchCV,Test,0.6121,0.139,0.3103,0.5,0.383,0.7191,0.4457,0.5052,145,40,18,18
+LightGBM,FE,random_search_fe,RandomizedSearchCV,Validation,0.6133,0.2083,0.3846,0.7143,0.5,0.7581,0.426,0.4071,145,40,10,25
+LightGBM,FE,random_search_fe,RandomizedSearchCV,Test,0.6133,0.2083,0.3375,0.75,0.4655,0.7779,0.5486,0.3998,132,53,9,27
+LightGBM,FE,optuna_fe,Optuna,Validation,0.6237,0.2519,0.3651,0.6571,0.4694,0.7325,0.371,0.4406,145,40,12,23
+LightGBM,FE,optuna_fe,Optuna,Test,0.6237,0.2519,0.3714,0.7222,0.4906,0.7782,0.5391,0.4043,141,44,10,26
