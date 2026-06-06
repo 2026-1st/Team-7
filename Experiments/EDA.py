@@ -6,8 +6,12 @@ import seaborn as sns
 # ==============================================================================
 # 0. 환경 세팅 (한글 깨짐 방지 및 스타일 설정)
 # ==============================================================================
-plt.rcParams['font.family'] = 'Malgun Gothic' 
+plt.rcParams['font.family'] = 'Malgun Gothic'
 plt.rcParams['axes.unicode_minus'] = False
+
+color_dict = {'No': '#4C72B0', 'Yes': '#C44E52'}
+color_list = ['#4C72B0', '#C44E52']
+
 sns.set_theme(style="whitegrid", font='Malgun Gothic', palette="pastel")
 
 # 데이터 로드
@@ -19,7 +23,7 @@ df_eda = pd.read_csv("data/data_team7.csv")
 print("\n" + "="*20 + " 1. 타겟 변수 분포 및 불균형 확인 " + "="*20)
 
 plt.figure(figsize=(6, 5))
-ax = sns.countplot(x='Attrition', data=df_eda, hue='Attrition', legend=False, palette=['#4C72B0', '#C44E52'])
+ax = sns.countplot(x='Attrition', data=df_eda, hue='Attrition', palette=color_dict, order=['No', 'Yes'], legend=False)
 
 # 각 바 위에 빈도수와 백분율 달아주기
 total = len(df_eda)
@@ -29,24 +33,24 @@ for p in ax.patches:
     y_pos = p.get_height() + 15
     ax.text(x_pos, y_pos, f'{int(p.get_height())}명\n({percentage})', ha='center', va='baseline', fontsize=11, fontweight='bold')
 
-plt.title('이직 여부(Attrition) 타겟 변수 분포 및 불균형 확인', fontsize=13, fontweight='bold', pad=15)
-plt.xlabel('이직 여부 (Attrition)', fontsize=11)
+plt.title('퇴사 여부(Attrition) 타겟 변수 분포 및 불균형 확인', fontsize=13, fontweight='bold', pad=15)
+plt.xlabel('퇴사 여부 (Attrition)', fontsize=11)
 plt.ylabel('임직원 수 (명)', fontsize=11)
 plt.ylim(0, total * 0.95)
 plt.tight_layout()
 plt.show()
 
 # ==============================================================================
-# 2. 주요 이직 요인 분석
+# 2. 주요 퇴사 요인 분석
 # ==============================================================================
-print("\n" + "="*20 + " 2. 주요 이직 요인 분석 " + "="*20)
+print("\n" + "="*20 + " 2. 주요 퇴사 요인 분석 " + "="*20)
 # ------------------------------------------------------------------------------
-# [그래프 1] 야근 여부(OverTime)별 이직 분포
+# [그래프 1] 야근 여부(OverTime)별 퇴사 분포
 # ------------------------------------------------------------------------------
 plt.figure(figsize=(7, 5))
-sns.countplot(x='OverTime', hue='Attrition', data=df_eda, palette=['#4C72B0', '#C44E52'])
+sns.countplot(x='OverTime', hue='Attrition', data=df_eda, palette=color_dict, hue_order=['No', 'Yes'])
 
-plt.title('야근 여부(OverTime)에 따른 이직 분포', fontsize=13, fontweight='bold', pad=15)
+plt.title('야근 여부(OverTime)에 따른 퇴사 분포', fontsize=13, fontweight='bold', pad=15)
 plt.xlabel('야근 여부', fontsize=11)
 plt.ylabel('인원 수 (명)', fontsize=11)
 plt.legend(title='Attrition', loc='upper right')
@@ -59,9 +63,9 @@ plt.show()
 plt.figure(figsize=(8.5, 6))
 
 job_attr_ratio = pd.crosstab(df_eda['JobRole'], df_eda['Attrition'], normalize='index') * 100
-job_attr_ratio = job_attr_ratio.sort_values(by='Yes', ascending=True)
+job_attr_ratio = job_attr_ratio[['No', 'Yes']].sort_values(by='Yes', ascending=True)
 
-job_attr_ratio.plot(kind='barh', stacked=True, color=['#4C72B0', '#C44E52'], width=0.6, ax=plt.gca())
+job_attr_ratio.plot(kind='barh', stacked=True, color=color_list, width=0.6, ax=plt.gca())
 
 for p in plt.gca().patches:
     width = p.get_width()
@@ -71,7 +75,7 @@ for p in plt.gca().patches:
         plt.gca().text(x_pos, y_pos, f'{width:.1f}%', ha='center', va='center', 
                        color='white', fontsize=9, fontweight='bold')
 
-plt.title('직무(JobRole)별 이직 상대 비율 (100% Stacked)', fontsize=13, fontweight='bold', pad=15)
+plt.title('직무(JobRole)별 퇴사 상대 비율 (100% Stacked)', fontsize=13, fontweight='bold', pad=15)
 plt.xlabel('비율 (%)', fontsize=11)
 plt.ylabel('직무 종류', fontsize=11)
 plt.legend(title='Attrition', loc='lower right')
@@ -80,13 +84,13 @@ plt.show()
 
 
 # ------------------------------------------------------------------------------
-# [그래프 3] 출장 빈도(BusinessTravel)에 따른 이직 분포
+# [그래프 3] 출장 빈도(BusinessTravel)에 따른 퇴사 분포
 # ------------------------------------------------------------------------------
 plt.figure(figsize=(7, 5))
-sns.countplot(x='BusinessTravel', hue='Attrition', data=df_eda, palette=['#4C72B0', '#C44E52'],
+sns.countplot(x='BusinessTravel', hue='Attrition', data=df_eda, palette=color_dict, hue_order=['No', 'Yes'],
               order=['Non-Travel', 'Travel_Rarely', 'Travel_Frequently'])
 
-plt.title('출장 빈도(BusinessTravel)에 따른 이직 분포', fontsize=13, fontweight='bold', pad=15)
+plt.title('출장 빈도(BusinessTravel)에 따른 퇴사 분포', fontsize=13, fontweight='bold', pad=15)
 plt.xlabel('출장 빈도', fontsize=11)
 plt.ylabel('인원 수 (명)', fontsize=11)
 plt.legend(title='Attrition', loc='upper right')
@@ -98,24 +102,22 @@ plt.show()
 # ==============================================================================
 print("\n" + "="*20 + " 3. 수치형 변수 상관관계 분석 " + "="*20)
 
-selected_num_cols = [
-    'Age', 'DistanceFromHome', 'JobLevel', 'MonthlyIncome', 
-    'NumCompaniesWorked', 'PercentSalaryHike', 'TotalWorkingYears', 
-    'YearsAtCompany', 'YearsSinceLastPromotion', 'YearsWithCurrManager'
-]
+all_num_cols = df_eda.select_dtypes(include=[np.number]).columns.tolist()
 
-corr_matrix = df_eda[selected_num_cols].corr()
+usable_num_cols = [col for col in all_num_cols if df_eda[col].nunique() > 1]
 
-plt.figure(figsize=(10, 8))
+corr_matrix = df_eda[usable_num_cols].corr()
+
+plt.figure(figsize=(14, 11))
 
 mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
 
-sns.heatmap(corr_matrix, mask=mask, annot=True, fmt=".2f", cmap='coolwarm', 
+sns.heatmap(corr_matrix, mask=mask, annot=False, cmap='coolwarm', 
             vmin=-1, vmax=1, center=0, square=True, linewidths=.5, 
-            cbar_kws={"shrink": .7}, annot_kws={"size": 10, "weight": "bold"})
+            cbar_kws={"shrink": .8, "label": "상관계수 크기 (Color Intensity)"})
 
-plt.title('주요 수치형 변수간 상관관계 피어슨 행렬 (Heatmap)', fontsize=14, fontweight='bold', pad=20)
-plt.xticks(rotation=45, ha='right')
-plt.yticks(rotation=0)
+plt.title('전체 수치형 변수간 상관관계 피어슨 행렬 (Heatmap)', fontsize=15, fontweight='bold', pad=25)
+plt.xticks(rotation=45, ha='right', fontsize=10)
+plt.yticks(rotation=0, fontsize=10)
 plt.tight_layout()
 plt.show()
