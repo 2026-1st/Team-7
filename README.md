@@ -8,12 +8,12 @@ IBM HR 데이터셋 속 직원들의 다양한 정보들 가운데 퇴사 결정
 ```text
 📦 Team-7
  ┣ 📂 Experiments (EDA)
- ┃ ┣ 📜 EDA 퇴사 요인 분석1.pdf
- ┃ ┣ 📜 EDA 퇴사 요인 분석2.pdf
- ┃ ┣ 📜 EDA 퇴사 요인 분석3.pdf
+ ┃ ┣ 📜 퇴사 요인 분석1.pdf
+ ┃ ┣ 📜 퇴사 요인 분석2.pdf
+ ┃ ┣ 📜 퇴사 요인 분석3.pdf
  ┃ ┣ 📜 EDA.py
- ┃ ┣ 📜 EDA_타겟 변수 불균형.pdf
- ┃ ┗ 📜 상관 행렬.pdf
+ ┃ ┣ 📜 불균형 확인.pdf
+ ┃ ┗ 📜 상관관계 행렬.pdf
  ┣ 📂 data
  ┃ ┣ 📜 raw_data_team7.csv (원본 데이터)
  ┃ ┗ 📜 data_team7.csv (무의미한 열 제거 완료된 데이터)
