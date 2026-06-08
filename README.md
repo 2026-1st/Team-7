@@ -42,7 +42,7 @@ IBM HR 데이터셋 속 직원들의 다양한 정보들 가운데 퇴사 결정
 ## 3. 실행 방법과 환경 (How to Run & Environment Notes)
 **실행 방법:** models 폴더 속 LightGBM, 로지스틱 회귀와 랜덤 포레스트는 로컬 환경에서 사용되었던 코드이기에 데이터 경로를 클론한 파일 위치를 기반으로 변경하고 사용해야 합니다. 
 
-XGBoost와 TabNet은 Colab 상에서 사용된 코드이기에 셀 단위로 하나씩 실행하면 재현 가능합니다.
+XGBoost와 TabNet은 Colab 상에서 사용된 코드이기에 Colab에서 노트북을 여신 후 셀 단위로 하나씩 실행하시면 재현 가능합니다.
 
 **실행 환경:** Python 3.12, scikit-learn 1.6.1, Pytorch 2.11.0, Optuna 4.9.0
 
@@ -53,3 +53,5 @@ XGBoost와 TabNet은 Colab 상에서 사용된 코드이기에 셀 단위로 하
 
 데이터 누수 방지: K-Fold나 Hold-out 분할 이전에 오버샘플링(SMOTE 등)을 적용하지 않고, Stratify을 엄격하게 유지했습니다.
 
+## 5. 결과 (Results)
+각 모델 별 평가 그래프들은 results 폴더 안에 정리되어 있습니다.
