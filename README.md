@@ -21,9 +21,9 @@ IBM HR 데이터셋 속 직원들의 다양한 정보들 가운데 퇴사 결정
  ┃ ┣ 📂 LightGBM
  ┃ ┃ ┗ 📜 LightGBM.ipynb
  ┃ ┣ 📂 Logistic
- ┃ ┃ ┗ 📜 Logistic_Regression.ipynb
+ ┃ ┃ ┗ 📜 Logistic_Regression.py
  ┃ ┣ 📂 RandomForest
- ┃ ┃ ┗ 📜 Random_Forest.ipynb
+ ┃ ┃ ┗ 📜 Random_Forest.py
  ┃ ┣ 📂 TabNet
  ┃ ┃ ┗ 📜 TabNet_.ipynb
  ┃ ┣ 📂 XGBoost
@@ -35,8 +35,8 @@ IBM HR 데이터셋 속 직원들의 다양한 정보들 가운데 퇴사 결정
  ┃ ┣ 📂 xgboost_experiments
  ┃ ┗ 📂 tabnet_experiments
  ┣ 📂 src
- ┃ ┣ 📜 preprocessing_code.py (데이터 분할 및 전처리 코드)
- ┃ ┗ 📜 feature_eng.py (파생 변수 생성 코드)
+ ┃ ┣ 📜 preprocessing_code.py 
+ ┃ ┗ 📜 feature_eng.py 
  ┗ 📜 README.md
 ```
 ## 3. 실행 방법과 환경 (How to Run & Environment Notes)
