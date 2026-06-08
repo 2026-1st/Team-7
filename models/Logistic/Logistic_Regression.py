@@ -69,13 +69,9 @@ def get_hr_data(filepath, model_type='tree'):
     X_valid, X_test, y_valid, y_test = train_test_split(X_temp, y_temp, test_size=0.5, stratify=y_temp, random_state=42)
 
     # 3. 변수 타입별 분류
-    categorical_cols = ['BusinessTravel', 'Department','EducationField','Gender', 'JobRole', 'MaritalStatus', 'OverTime', ]
-    numerical_cols = ['Age', 'DailyRate', 'DistanceFromHome', 'Education','EnvironmentSatisfaction','HourlyRate',
-                      'JobInvolvement','JobLevel','JobSatisfaction','MonthlyIncome', 'MonthlyRate','NumCompaniesWorked', 'PercentSalaryHike', 
-                      'PerformanceRating', 'RelationshipSatisfaction', 'StockOptionLevel', 'TotalWorkingYears', 
-                      'TrainingTimesLastYear', 'WorkLifeBalance', 'YearsAtCompany', 'YearsInCurrentRole', 
-                      'YearsSinceLastPromotion', 'YearsWithCurrManager', 'Total_Satisfaction_Score', 'Income_Per_WorkingYear', 'Income_Per_YearAtCompany', 'Income_Per_Level',
-                      'Cost_Effectiveness', 'Burnout_Risk', 'Sat_WLB_Interaction', 'Promotion_Speed_Index', 'Stagnation_Index', 'Job_Hopping_Index', 'Loyalty_Ratio']
+    categorical_cols = X.select_dtypes(include=['object', 'category']).columns.tolist()
+    numerical_cols = X.select_dtypes(exclude=['object', 'category']).columns.tolist()
+    
 
     # 4. 모델 타입에 따른 전처리기(ColumnTransformer) 구성
     if model_type == 'linear_xgb':
@@ -360,39 +356,7 @@ final_th = 0.5                        # 확정된 기본 임계값
 
 
 # ==============================================================================
-# 1. Learning_Curve
-# ==============================================================================
-train_sizes, train_scores, valid_scores = learning_curve(
-    estimator=target_model,
-    X=X_train_target,
-    y=y_train_target,
-    train_sizes=np.linspace(0.1, 1.0, 10),
-    cv=5,
-    scoring='average_precision',  
-    n_jobs=-1,
-    random_state=42
-)
-
-train_mean = np.mean(train_scores, axis=1)
-valid_mean = np.mean(valid_scores, axis=1)
-
-plt.figure(figsize=(8, 5))
-plt.plot(train_sizes, train_mean, 'o-', color='blue', label='Train PR-AUC')
-plt.plot(train_sizes, valid_mean, 'o-', color='green', label='Validation PR-AUC')
-# Best 모델 빨간 점선 표시
-plt.axvline(x=train_sizes[-1], color='red', linestyle='--', linewidth=1.5, label='Best Model Point')
-
-plt.title('로지스틱 회귀 Learning Curve (PR-AUC)', fontsize=14, fontweight='bold')
-plt.xlabel('훈련 데이터 크기 (Training Samples)', fontsize=11)
-plt.ylabel('PR-AUC Score', fontsize=11)
-plt.grid(True, linestyle=':', alpha=0.6)
-plt.legend(loc='best')
-plt.tight_layout()
-plt.show()
-
-
-# ==============================================================================
-# 2. Precision-Recall_Curve
+# Precision-Recall_Curve
 # ==============================================================================
 y_proba_test = target_model.predict_proba(X_test_target)[:, 1]
 precisions, recalls, thresholds = precision_recall_curve(y_test_target, y_proba_test)
@@ -410,7 +374,7 @@ plt.show()
 
 
 # ==============================================================================
-# 3. Confusion_Matrix
+# Confusion_Matrix
 # ==============================================================================
 y_pred_test_custom = (y_proba_test >= final_th).astype(int)
 cm = confusion_matrix(y_test_target, y_pred_test_custom)
@@ -429,7 +393,7 @@ plt.show()
 
 
 # ==============================================================================
-# 4. Feature_Importance
+# Feature_Importance
 # ==============================================================================
 coef_values = target_model.coef_[0]
 importance_df = pd.DataFrame({
