@@ -53,3 +53,5 @@ XGBoost와 TabNet은 Colab 상에서 사용된 코드이기에 Colab에서 노�
 
 데이터 누수 방지: K-Fold나 Hold-out 분할 이전에 오버샘플링(SMOTE 등)을 적용하지 않고, Stratify을 엄격하게 유지했습니다.
 
+## 5. 결과 (Results)
+각 모델 별 평가 그래프들은 results 폴더 안에 정리되어 있습니다.
