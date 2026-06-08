@@ -1,0 +1,4 @@
+﻿Threshold,Precision,Recall,F1,ROC-AUC,PR-AUC,TN,FP,FN,TP,Dataset,PR-AUC Gap vs Train,F1 Gap vs Train,Best Search,Best Iteration,Best Params
+0.1999,0.5607,0.8072,0.6617,0.9218,0.8261,758,105,32,134,Train,0.0,0.0,GridSearchCV,180,"{'colsample_bytree': 0.7, 'learning_rate': 0.08, 'max_depth': 2, 'min_child_samples': 50, 'min_split_gain': 0.02, 'num_leaves': 3, 'reg_alpha': 0.2, 'reg_lambda': 3, 'subsample': 0.7}"
+0.1999,0.4561,0.7429,0.5652,0.7747,0.4715,154,31,9,26,Validation,0.3546,0.0965,GridSearchCV,180,"{'colsample_bytree': 0.7, 'learning_rate': 0.08, 'max_depth': 2, 'min_child_samples': 50, 'min_split_gain': 0.02, 'num_leaves': 3, 'reg_alpha': 0.2, 'reg_lambda': 3, 'subsample': 0.7}"
+0.1999,0.4364,0.6667,0.5275,0.8347,0.5672,154,31,12,24,Test,0.2589,0.1342,GridSearchCV,180,"{'colsample_bytree': 0.7, 'learning_rate': 0.08, 'max_depth': 2, 'min_child_samples': 50, 'min_split_gain': 0.02, 'num_leaves': 3, 'reg_alpha': 0.2, 'reg_lambda': 3, 'subsample': 0.7}"
