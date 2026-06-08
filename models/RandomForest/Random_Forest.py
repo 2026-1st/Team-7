@@ -69,14 +69,9 @@ def get_hr_data(filepath, model_type='tree'):
     X_valid, X_test, y_valid, y_test = train_test_split(X_temp, y_temp, test_size=0.5, stratify=y_temp, random_state=42)
 
     # 3. 변수 타입별 분류
-    categorical_cols = ['BusinessTravel', 'Department','EducationField','Gender', 'JobRole', 'MaritalStatus', 'OverTime', ]
-    numerical_cols = ['Age', 'DailyRate', 'DistanceFromHome', 'Education','EnvironmentSatisfaction','HourlyRate',
-                      'JobInvolvement','JobLevel','JobSatisfaction','MonthlyIncome', 'MonthlyRate', 'NumCompaniesWorked', 'PercentSalaryHike', 
-                      'PerformanceRating', 'RelationshipSatisfaction', 'StockOptionLevel', 'TotalWorkingYears', 
-                      'TrainingTimesLastYear', 'WorkLifeBalance', 'YearsAtCompany', 'YearsInCurrentRole', 
-                      'YearsSinceLastPromotion', 'YearsWithCurrManager', 'Total_Satisfaction_Score', 'Income_Per_WorkingYear', 'Income_Per_YearAtCompany', 'Income_Per_Level',
-                      'Cost_Effectiveness', 'Burnout_Risk', 'Sat_WLB_Interaction', 'Promotion_Speed_Index', 'Stagnation_Index', 'Job_Hopping_Index', 'Loyalty_Ratio']
-
+    categorical_cols = X.select_dtypes(include=['object', 'category']).columns.tolist()
+    numerical_cols = X.select_dtypes(exclude=['object', 'category']).columns.tolist()
+    
     # 4. 모델 타입에 따른 전처리기(ColumnTransformer) 구성
     if model_type == 'linear_xgb':
         # Track A: 다중공선성 방지를 위해 drop='first' 적용
@@ -149,8 +144,9 @@ x_valid_pre = preprocessor_pre.transform(X_valid_ori)
 
 param_grid = {
     'n_estimators':[10, 50, 100, 300],
-    'max_depth' : [None, 5, 10, 15],
+    'max_depth' : [3, 5, 7, 10],
     'min_samples_split' : [2, 5, 10],
+    'min_samples_leaf': [4, 8],
     'class_weight': [None, 'balanced']
 }
 
@@ -167,16 +163,20 @@ cv_results = pd.DataFrame(grid_search.cv_results_)
 report_df = pd.DataFrame({
     'Class_Weight': cv_results['param_class_weight'], 'N_Estimators': cv_results['param_n_estimators'],
     'Max_Depth': cv_results['param_max_depth'], 'Min_Samples_Split': cv_results['param_min_samples_split'],
+    'Min_Samples_Leaf': cv_results['param_min_samples_leaf'],
     'Precision': cv_results['mean_test_precision'].round(4), 'Recall': cv_results['mean_test_recall'].round(4),
     'F1-Score': cv_results['mean_test_f1'].round(4), 'ROC-AUC': cv_results['mean_test_roc_auc'].round(4),
     'PR-AUC': cv_results['mean_test_pr_auc'].round(4), 'LogLoss': (cv_results['mean_test_logloss'] * -1).round(4)
 })
 
+pd.set_option('display.max_columns', None) 
+pd.set_option('display.width', 1000)
+
 print("\n [순정 데이터] PR-AUC 높은 순 TOP 5")
 display(report_df.sort_values(by='PR-AUC', ascending=False).head(5))
 
 # 지표별 1등 조합 복원학습 (ROC-AUC와 PR-AUC 중복으로 총 5개)
-best_comb_pre = {"class_weight": None, "n_estimators": 300, "max_depth": 10, "min_samples_split": 5}
+best_comb_pre = {"class_weight": None, "n_estimators": 300, "max_depth": 7, "min_samples_split": 2, 'min_samples_leaf': 4} 
 
 
 final_rf_master_pre = RandomForestClassifier(
@@ -285,6 +285,7 @@ cv_results_rf_post = pd.DataFrame(grid_search_rf_post.cv_results_)
 report_rf_post_df = pd.DataFrame({
     'Class_Weight': cv_results_rf_post['param_class_weight'], 'N_Estimators': cv_results_rf_post['param_n_estimators'],
     'Max_Depth': cv_results_rf_post['param_max_depth'], 'Min_Samples_Split': cv_results_rf_post['param_min_samples_split'],
+    'Min_Samples_Leaf': cv_results_rf_post['param_min_samples_leaf'],
     'Precision': cv_results_rf_post['mean_test_precision'].round(4), 'Recall': cv_results_rf_post['mean_test_recall'].round(4),
     'F1-Score': cv_results_rf_post['mean_test_f1'].round(4), 'ROC-AUC': cv_results_rf_post['mean_test_roc_auc'].round(4),
     'PR-AUC': cv_results_rf_post['mean_test_pr_auc'].round(4), 'LogLoss': (cv_results_rf_post['mean_test_logloss'] * -1).round(4), 
@@ -296,15 +297,17 @@ display(report_rf_post_df.sort_values(by='PR-AUC', ascending=False).head(5))
 
 
 # 새로운 1등 조합의 하이퍼파라미터 수치로 최종 모델 재학습 및 성능 산출
-best_class_weight_rf = None
+best_class_weight_rf = 'balanced'
 best_n_estimators_rf = 300
-best_max_depth_rf = None
+best_max_depth_rf = 10
 best_min_samples_split_rf = 2
+best_min_samples_leaf_rf = 4
 
 rf_model_post = RandomForestClassifier(
     n_estimators=best_n_estimators_rf,
     max_depth=best_max_depth_rf,
     min_samples_split=best_min_samples_split_rf,
+    min_samples_leaf=best_min_samples_leaf_rf,
     class_weight=best_class_weight_rf,
     random_state=42,
     n_jobs=-1
@@ -343,7 +346,7 @@ cv_scoring = {
 }
 
 # 1) 피처 엔지니어링 [전] 최종 마스터 모델 규격
-final_cv_model_pre = RandomForestClassifier(n_estimators=300, max_depth=4, min_samples_split=10, class_weight=None, random_state=42, n_jobs=-1)
+final_cv_model_pre = RandomForestClassifier(n_estimators=300, max_depth=7, min_samples_split=2, min_samples_leaf=4, class_weight=None, random_state=42, n_jobs=-1)
 cv_results_pre = cross_validate(final_cv_model_pre, x_train_pre, y_train, cv=cv_strategy, scoring=cv_scoring, n_jobs=-1)
 
 # 2) 피처 엔지니어링 [후] 2차 최적화가 완비된 파생 변수 최종 1등 모델
@@ -400,39 +403,9 @@ feature_names_target = feature_names_eng
 final_rf_th = 0.5                     # 확정된 기본 임계값
 
 
-# ==============================================================================
-# 1. Learning_Curve
-# ==============================================================================
-train_sizes, train_scores, valid_scores = learning_curve(
-    estimator=target_model,
-    X=X_train_target,
-    y=y_train_target,
-    train_sizes=np.linspace(0.1, 1.0, 10),
-    cv=5,
-    scoring='average_precision',  
-    n_jobs=-1,
-    random_state=42
-)
-
-train_mean = np.mean(train_scores, axis=1)
-valid_mean = np.mean(valid_scores, axis=1)
-
-plt.figure(figsize=(8, 5))
-plt.plot(train_sizes, train_mean, 'o-', color='blue', label='Train PR-AUC')
-plt.plot(train_sizes, valid_mean, 'o-', color='green', label='Validation PR-AUC')
-
-plt.axvline(x=train_sizes[-1], color='red', linestyle='--', linewidth=1.5, label='Best Model Point')
-plt.title('랜덤 포레스트 Learning Curve (PR-AUC)', fontsize=14, fontweight='bold')
-plt.xlabel('훈련 데이터 크기 (Training Samples)', fontsize=11)
-plt.ylabel('PR-AUC Score', fontsize=11)
-plt.grid(True, linestyle=':', alpha=0.6)
-plt.legend(loc='best')
-plt.tight_layout()
-plt.show() 
-
 
 # ==============================================================================
-# 2. Precision-Recall_Curve
+# Precision-Recall_Curve
 # ==============================================================================
 y_proba_test = target_model.predict_proba(X_test_target)[:, 1]
 precisions, recalls, thresholds = precision_recall_curve(y_test_target, y_proba_test)
@@ -450,7 +423,7 @@ plt.show()
 
 
 # ==============================================================================
-# 3. Confusion_Matrix 
+# Confusion_Matrix 
 # ==============================================================================
 y_pred_test_custom = (y_proba_test >= final_rf_th).astype(int)
 cm = confusion_matrix(y_test_target, y_pred_test_custom)
@@ -469,7 +442,7 @@ plt.show()
 
 
 # ==============================================================================
-# 4. Feature_Importance 
+# Feature_Importance 
 # ==============================================================================
 importances = target_model.feature_importances_
 importance_df = pd.DataFrame({
