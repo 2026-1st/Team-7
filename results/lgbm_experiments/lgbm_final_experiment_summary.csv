@@ -1,7 +1,0 @@
-﻿Attempt,Search Method,Dataset,CV Best PR-AUC,Threshold,Precision,Recall,F1-Score,ROC-AUC,PR-AUC,LogLoss
-grid_search,GridSearchCV,Validation,0.5987,0.2152,0.3188,0.6286,0.4231,0.7178,0.4017,0.4377
-grid_search,GridSearchCV,Test,0.5987,0.2152,0.3077,0.6667,0.4211,0.7829,0.527,0.3799
-random_search,RandomizedSearchCV,Validation,0.6018,0.2773,0.3651,0.6571,0.4694,0.7401,0.3858,0.4351
-random_search,RandomizedSearchCV,Test,0.6018,0.2773,0.377,0.6389,0.4742,0.7989,0.541,0.3813
-optuna,Optuna,Validation,0.6049,0.4084,0.3582,0.6857,0.4706,0.7378,0.3925,0.4777
-optuna,Optuna,Test,0.6049,0.4084,0.3729,0.6111,0.4632,0.794,0.5062,0.429
