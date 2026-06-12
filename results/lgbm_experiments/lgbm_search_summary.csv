@@ -1,3 +1,3 @@
 ﻿Search,CV PR-AUC,Best Params
-GridSearchCV,0.6625,"{'colsample_bytree': 0.7, 'learning_rate': 0.08, 'max_depth': 2, 'min_child_samples': 50, 'min_split_gain': 0.02, 'num_leaves': 3, 'reg_alpha': 0.2, 'reg_lambda': 3, 'subsample': 0.7}"
-RandomizedSearchCV,0.6622,"{'subsample': 0.7, 'reg_lambda': 5, 'reg_alpha': 0.2, 'num_leaves': 3, 'min_split_gain': 0.02, 'min_child_samples': 50, 'max_depth': 2, 'learning_rate': 0.08, 'colsample_bytree': 0.7}"
+GridSearchCV,0.6504,"{'class_weight': 'balanced', 'colsample_bytree': 0.85, 'learning_rate': 0.05, 'max_depth': 2, 'min_child_samples': 10, 'min_split_gain': 0, 'num_leaves': 3, 'reg_alpha': 0.5, 'reg_lambda': 1, 'subsample': 0.7}"
+RandomizedSearchCV,0.6444,"{'subsample': 0.7, 'reg_lambda': 0, 'reg_alpha': 0.5, 'num_leaves': 3, 'min_split_gain': 0.02, 'min_child_samples': 20, 'max_depth': 3, 'learning_rate': 0.05, 'colsample_bytree': 0.85, 'class_weight': 'balanced'}"
